@@ -1,5 +1,7 @@
 # Orb Generator
 
+**Live: https://orb-generator.netlify.app**
+
 An interactive **AI orb generator**: a refractive, fluidly morphing glass orb you tune from a form panel, then export as a PNG or copy as a ready-to-paste React Three Fiber component.
 
 Built on [Toolcraft](https://www.npmjs.com/package/@pixel-point/toolcraft) with React Three Fiber, Drei, and three.js.
