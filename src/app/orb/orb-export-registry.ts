@@ -7,7 +7,31 @@ export type OrbFrameRenderer = (
   height: number,
 ) => HTMLCanvasElement | null;
 
+export type OrbComposer = {
+  render: () => void;
+  setSize: (width: number, height: number) => void;
+};
+
 let activeRenderer: OrbFrameRenderer | null = null;
+let activeComposer: OrbComposer | null = null;
+
+/**
+ * Export must composite through the same post pipeline the screen uses, or a
+ * bloomed preview would download as an un-bloomed image.
+ */
+export function registerOrbComposer(composer: OrbComposer): () => void {
+  activeComposer = composer;
+
+  return () => {
+    if (activeComposer === composer) {
+      activeComposer = null;
+    }
+  };
+}
+
+export function getOrbComposer(): OrbComposer | null {
+  return activeComposer;
+}
 
 export function registerOrbFrameRenderer(renderer: OrbFrameRenderer): () => void {
   activeRenderer = renderer;

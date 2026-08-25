@@ -1,6 +1,6 @@
 import type { OrbParams } from "./orb-params";
 
-export type OrbStyleId = "glass" | "bubble" | "frost" | "metal";
+export type OrbStyleId = "glass" | "bubble" | "frost" | "metal" | "plasma";
 export type OrbStateId = "idle" | "think" | "search" | "speak";
 
 /**
@@ -31,9 +31,22 @@ export type OrbStudioConfig = {
   domeTop: string;
 };
 
+/**
+ * Bloom is per style rather than a tenth slider: a mirror should barely bleed
+ * and a plasma should bleed a lot, and the existing Glow control already
+ * scales it so the user still has reach.
+ */
+export type OrbBloomConfig = {
+  intensity: number;
+  radius: number;
+  threshold: number;
+};
+
 export type OrbStyle = {
   /** Resting parameter set. States are deltas on top of this. */
   base: OrbParams;
+  bloom: OrbBloomConfig;
+  coreIntensityScale: number;
   coreScale: number;
   haloSize: number;
   id: OrbStyleId;
@@ -49,6 +62,7 @@ export const orbStyleOrder: readonly OrbStyleId[] = [
   "bubble",
   "frost",
   "metal",
+  "plasma",
 ];
 
 export const orbStyles: Record<OrbStyleId, OrbStyle> = {
@@ -64,6 +78,8 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       primaryColor: "#7C5CFF",
       roughness: 0.06,
     },
+    bloom: { intensity: 0.26, radius: 0.6, threshold: 0.88 },
+    coreIntensityScale: 1,
     coreScale: 0.42,
     haloSize: 4.2,
     id: "glass",
@@ -102,6 +118,8 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       primaryColor: "#A7F3FF",
       roughness: 0.02,
     },
+    bloom: { intensity: 0.34, radius: 0.68, threshold: 0.84 },
+    coreIntensityScale: 0.9,
     coreScale: 0.3,
     haloSize: 4.6,
     id: "bubble",
@@ -142,6 +160,8 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       primaryColor: "#BFE6FF",
       roughness: 0.55,
     },
+    bloom: { intensity: 0.18, radius: 0.55, threshold: 0.9 },
+    coreIntensityScale: 0.8,
     coreScale: 0.5,
     haloSize: 4,
     id: "frost",
@@ -184,6 +204,8 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       primaryColor: "#C8CDD8",
       roughness: 0.08,
     },
+    bloom: { intensity: 0.16, radius: 0.5, threshold: 0.92 },
+    coreIntensityScale: 0.7,
     coreScale: 0.2,
     haloSize: 4,
     id: "metal",
@@ -212,6 +234,51 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       domeTop: "#B7BEE4",
     },
     tintLift: 0.15,
+  },
+  plasma: {
+    base: {
+      chromaticAberration: 0.15,
+      coreColor: "#FFD166",
+      distortion: 0.45,
+      flowSpeed: 1.1,
+      glowIntensity: 1.3,
+      glowSpread: 2.2,
+      ior: 1.15,
+      primaryColor: "#FF3D8B",
+      roughness: 0.25,
+    },
+    // Bloom is what makes an emissive core read as light rather than as a
+    // bright ball, so this style is the reason the composer exists.
+    bloom: { intensity: 1.9, radius: 0.85, threshold: 0.42 },
+    coreIntensityScale: 2.4,
+    coreScale: 0.72,
+    haloSize: 4.8,
+    id: "plasma",
+    label: "Plasma",
+    material: {
+      // Partial transmission over a short attenuation distance: the shell
+      // glows from within instead of showing the room through it.
+      attenuationDistance: 0.7,
+      backsideThickness: 0.3,
+      clearcoat: 0,
+      clearcoatRoughness: 0.4,
+      envMapIntensity: 0.6,
+      iridescence: 0,
+      iridescenceIOR: 1.3,
+      iridescenceThicknessRange: [100, 400],
+      metalness: 0,
+      samples: 8,
+      thickness: 0.9,
+      transmission: 0.55,
+    },
+    studio: {
+      // A dark room, so the orb is the only light source in frame.
+      cardIntensityScale: 0.5,
+      domeBottom: "#0B0814",
+      domeHorizon: "#171226",
+      domeTop: "#2A2140",
+    },
+    tintLift: 0.3,
   },
 };
 

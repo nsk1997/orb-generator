@@ -1,5 +1,7 @@
 import * as React from "react";
 import { Environment } from "@react-three/drei";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import type { BloomEffect, EffectComposer as EffectComposerImpl } from "postprocessing";
 import { MeshTransmissionMaterial } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
@@ -24,7 +26,11 @@ import {
   createOrbDisplacementUniforms,
   type OrbDisplacementUniforms,
 } from "./orb-displacement";
-import { registerOrbFrameRenderer } from "./orb-export-registry";
+import {
+  getOrbComposer,
+  registerOrbComposer,
+  registerOrbFrameRenderer,
+} from "./orb-export-registry";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import { orbDefaults, orbViewDistanceDefault, type OrbParams } from "./orb-params";
 import { orbStyles, type OrbStudioConfig, type OrbStyleId } from "./orb-styles";
@@ -93,6 +99,7 @@ export function OrbScene({
 
   const bodyRef = React.useRef<Mesh | null>(null);
   const haloRef = React.useRef<Mesh | null>(null);
+  const bloomRef = React.useRef<BloomEffect | null>(null);
 
   // Drei's transmission sampler renders the main scene, which holds no sky.
   // Handing it the environment probe is what turns refraction from a
@@ -237,7 +244,14 @@ export function OrbScene({
     coreMaterial.uniforms.orbFlow.value = state.flowPhase;
     coreMaterial.uniforms.orbCoreColor.value.copy(shownCore);
     coreMaterial.uniforms.orbCoreIntensity.value =
-      0.5 + state.glowIntensity * 0.28;
+      (0.5 + state.glowIntensity * 0.28) * style.coreIntensityScale;
+
+    // Glow already means "how much light escapes", so it scales bloom too
+    // rather than adding a tenth control for the same idea.
+    if (bloomRef.current) {
+      bloomRef.current.intensity =
+        style.bloom.intensity * (0.55 + state.glowIntensity * 0.45);
+    }
 
     const pose = inputs.pose;
     cameraTarget.set(pose.position[0], pose.position[1], pose.position[2]);
@@ -297,6 +311,7 @@ export function OrbScene({
       <mesh material={glowMaterial} ref={haloRef} renderOrder={-1}>
         <planeGeometry args={[style.haloSize, style.haloSize]} />
       </mesh>
+      <OrbEffects bloomRef={bloomRef} style={style} />
     </>
   );
 }
@@ -470,7 +485,16 @@ export function OrbCanvasBridge({
         gl.setClearColor(previousClear, 0);
         perspective.aspect = width / height;
         perspective.updateProjectionMatrix();
-        gl.render(scene, camera);
+
+        // Render through the post pipeline when one is mounted; a direct
+        // scene render would drop bloom from the exported image.
+        const composer = getOrbComposer();
+        if (composer) {
+          composer.setSize(width, height);
+          composer.render();
+        } else {
+          gl.render(scene, camera);
+        }
 
         snapshot = document.createElement("canvas");
         snapshot.width = width;
@@ -479,6 +503,7 @@ export function OrbCanvasBridge({
       } finally {
         gl.setPixelRatio(previousPixelRatio);
         gl.setSize(previousSize.x, previousSize.y, false);
+        getOrbComposer()?.setSize(previousSize.x, previousSize.y);
         gl.setClearColor(previousClear, previousClearAlpha);
         perspective.aspect = previousAspect;
         perspective.updateProjectionMatrix();
@@ -489,4 +514,39 @@ export function OrbCanvasBridge({
   }, [camera, gl, scene]);
 
   return null;
+}
+
+/**
+ * The composer takes over rendering from R3F's default loop, which is exactly
+ * why export has to go through it too: rendering the scene directly would
+ * silently produce un-bloomed pixels that still look fine on screen.
+ */
+function OrbEffects({
+  bloomRef,
+  style,
+}: Readonly<{
+  bloomRef: React.RefObject<BloomEffect | null>;
+  style: (typeof orbStyles)[OrbStyleId];
+}>): React.JSX.Element {
+  const composerRef = React.useRef<EffectComposerImpl | null>(null);
+
+  React.useEffect(() => {
+    if (!composerRef.current) {
+      return;
+    }
+
+    return registerOrbComposer(composerRef.current);
+  }, []);
+
+  return (
+    <EffectComposer key={style.id} ref={composerRef}>
+      <Bloom
+        luminanceSmoothing={0.25}
+        luminanceThreshold={style.bloom.threshold}
+        mipmapBlur
+        radius={style.bloom.radius}
+        ref={bloomRef}
+      />
+    </EffectComposer>
+  );
 }

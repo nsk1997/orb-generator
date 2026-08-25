@@ -1,3 +1,4 @@
+import { transform } from "esbuild";
 import { describe, expect, it } from "vitest";
 
 import { createOrbCodeSnippet } from "./orb-code-snippet";
@@ -12,6 +13,16 @@ function snippetFor(styleId: (typeof orbStyleOrder)[number]): string {
 }
 
 describe("copy code snippet", () => {
+  it("emits syntactically valid JSX for every style", async () => {
+    // Cheap guard on the one promise this feature makes: that the copied
+    // text actually runs. A template-escaping slip is invisible by eye.
+    for (const styleId of orbStyleOrder) {
+      await expect(
+        transform(snippetFor(styleId), { loader: "jsx" }),
+      ).resolves.toBeTruthy();
+    }
+  });
+
   it("carries the selected style's material, not the default one", () => {
     // Copying while on Metal must not hand back Glass code.
     const metal = snippetFor("metal");
@@ -42,6 +53,17 @@ describe("copy code snippet", () => {
       );
       expect(snippet).toContain(`thickness={${style.material.thickness}}`);
       expect(snippet).toContain(`style: "${styleId}"`);
+    }
+  });
+
+  it("carries the post pipeline, or a pasted orb would lose its glow", () => {
+    for (const styleId of orbStyleOrder) {
+      const snippet = snippetFor(styleId);
+      expect(snippet).toContain("@react-three/postprocessing");
+      expect(snippet).toContain("<EffectComposer>");
+      expect(snippet).toContain(
+        `bloomThreshold: ${orbStyles[styleId].bloom.threshold}`,
+      );
     }
   });
 

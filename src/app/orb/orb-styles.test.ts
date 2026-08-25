@@ -89,6 +89,19 @@ describe("orb style and state composition", () => {
     expect(readOrbStateId("speak")).toBe("speak");
   });
 
+  it("gives the emissive style the strongest bloom and the mirror the weakest", () => {
+    const intensities = orbStyleOrder.map((id) => orbStyles[id].bloom.intensity);
+
+    expect(orbStyles.plasma.bloom.intensity).toBe(Math.max(...intensities));
+    expect(orbStyles.metal.bloom.intensity).toBe(Math.min(...intensities));
+    // A threshold at or above 1 would never trigger on tone-mapped output.
+    for (const id of orbStyleOrder) {
+      expect(orbStyles[id].bloom.threshold).toBeGreaterThan(0);
+      expect(orbStyles[id].bloom.threshold).toBeLessThan(1);
+      expect(orbStyles[id].bloom.intensity).toBeGreaterThan(0);
+    }
+  });
+
   it("labels every state within the segmented control budget", () => {
     const labels = orbStateOrder.map((id) => orbStateDeltas[id].label);
 

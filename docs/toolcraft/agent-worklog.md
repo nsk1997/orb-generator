@@ -120,11 +120,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Risk: the style control now rebuilds the environment probe, which is declared in the render pipeline but only proven by eye so far. Risk: Frost reads grainy under software rendering because rough transmission samples sparsely at six samples; it needs checking on real hardware before the sample count is judged. Risk: Bubble is the most expensive style, and could not be rasterised at full canvas size under SwiftShader at all.
 
+### Iteration 4 — Bloom, the Plasma style, and export through the composer
+
+- Request: phase 2
+- Task type: Renderer, post processing, export, controls, acceptance, performance.
+- User-visible result: A Plasma style joins the four existing ones: an emissive core inside a partly transmissive shell, in a dark room, with heavy bloom. All styles now render through a bloom pass whose strength is per style and scaled by the existing Glow control, and exported PNGs carry that bloom.
+- Source/reference checked: `@react-three/postprocessing` 3.1.0 peer ranges against the installed React Three Fiber and three versions, browser captures of Glass before and after the composer, a Plasma export decoded and compared against the screen.
+- Reference inputs: None. Written product brief only.
+- Docs/contracts read: `core/performance.md`, `renderer-technique.md`, `core/setup-export.md`, `component-rules.md`.
+- Contract rules applied: `renderer-technique-inventory`, `output-export-required`, `controls-product-coverage`, `acceptance-product-observable`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged. Bloom has no control of its own; it rides the existing Glow value.
+- Decision: The composer takes over rendering from the default loop, so export renders through the composer too rather than calling the renderer directly, which would have produced un-bloomed images that still looked correct on screen. Bloom strength lives on the style instead of becoming a tenth slider, and is scaled by Glow so the existing control gains reach. Tone mapping stayed on the materials rather than moving into a tone-mapping effect, because moving it would have shifted all four tuned styles.
+- Alternatives rejected: A dedicated bloom slider, which would duplicate what Glow already means. Moving tone mapping into the composer, which is more correct but would have re-tuned every existing style. Leaving bloom uniform across styles, which would have made a mirror bleed like a plasma.
+- State/output mapping: `orb.style` selects the bloom configuration; the render loop multiplies its intensity by the live Glow value; the same configuration is emitted into the Copy Code snippet so a pasted orb keeps its glow.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: bloom visibly softened the existing styles at first, and their intensities were reduced until the change reads as an addition rather than a retune; Glass is still slightly softer than before Phase 2. Risk: the bloom pass runs every frame on top of a transmissive scene, and its cost has only been observed under software rendering.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Bloom and export proof: a Plasma frame was exported at 2048x2048 and compared against the screen capture; both carry the same bloom, confirming export runs through the composer. With bloom set to effectively zero the composer output differed from the pre-composer render by 3.82 mean absolute channel levels out of 255, which is animation phase rather than a colour-management shift, so the visible softening was bloom and not a double conversion. `src/app/orb/orb-code-snippet.test.ts` parses every generated snippet with esbuild, which is what caught a template-escaping slip that emitted invalid JSX.
 - Style proof: `src/app/orb/orb-styles.test.ts` proves every style/state combination lands inside its slider domain, that colour is style-owned across all four states, that each state is more agitated than rest in every style, and that only the opaque style skips the transmission passes. `src/app/orb/orb-code-snippet.test.ts` proves Copy Code emits the selected style's material, studio, and geometry rather than the default one.
 - Loop proof: `src/app/orb/orb-loop.test.ts` proves the cross-fade identity for an arbitrary noise function, continuity across the wrap, the exact pulse loop, phase wrapping over 5000 frames, and that the shipped shader keeps both the looping form and the original drift rate. `src/app/orb/orb-displacement.test.ts` proves injection against three's real physical and standard vertex shaders, uniform identity, idempotence, chaining onto a material's own `onBeforeCompile`, and a hard failure when a chunk marker is missing.
 - Product observations: the rendered orb, the applied state presets, the clipboard snippet, and a decodable 4096x4096 `orb.png` from Export PNG at the default 4K setting are stored under `.toolcraft/browser-artifacts/`.

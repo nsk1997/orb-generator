@@ -36,10 +36,11 @@ export function createOrbCodeSnippet(
   const glassTint = lightenTowardWhite(params.primaryColor, style.tintLift);
 
   return `// Orb generated with the Orb Generator.
-// npm i three @react-three/fiber @react-three/drei
+// npm i three @react-three/fiber @react-three/drei @react-three/postprocessing postprocessing
 import { useMemo, useRef, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, MeshTransmissionMaterial } from "@react-three/drei";
+import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 const ORB_LOOP_SPAN = ${orbLoopSpan};
@@ -54,6 +55,9 @@ const ORB = {
   ior: ${round(params.ior)},
   glassTint: "${glassTint}",
   style: "${style.id}",
+  bloomIntensity: ${round(style.bloom.intensity * (0.55 + params.glowIntensity * 0.45))},
+  bloomRadius: ${style.bloom.radius},
+  bloomThreshold: ${style.bloom.threshold},
   primaryColor: "${params.primaryColor}",
   roughness: ${round(params.roughness)},
 };
@@ -326,6 +330,15 @@ export default function OrbScene() {
       style={{ background: "${options.backgroundColor}" }}
     >
       <Orb />
+      <EffectComposer>
+        <Bloom
+          intensity={ORB.bloomIntensity}
+          luminanceSmoothing={0.25}
+          luminanceThreshold={ORB.bloomThreshold}
+          mipmapBlur
+          radius={ORB.bloomRadius}
+        />
+      </EffectComposer>
     </Canvas>
   );
 }
