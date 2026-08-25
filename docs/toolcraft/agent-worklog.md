@@ -1,0 +1,105 @@
+# Implementation Worklog
+
+This file records product decisions and the evidence behind them. Keep it short, factual, and current. Update it after schema, renderer, timeline, layer, export, performance, or acceptance decisions.
+
+## Status
+
+Mode: product
+
+Orb Generator renders a refractive, fluidly morphing assistant orb in WebGL, tunes it from the controls panel, and delivers it as a PNG or as a React Three Fiber snippet on the clipboard.
+
+## Automatic Delivery Lifecycle
+
+Keep this worklog human-shaped. For the first product delivery, record the request, decisions, state/output mapping, reference evidence, rejected alternatives, and known risks; one bare `npm run verify:delivery` derives complete contract proof, one build, full functional acceptance, and no measured performance. For later ordinary edits, record new intent and material decisions, the exact unit/component test, and acceptance IDs passed to `npm run test:feature`.
+
+Classifier output establishes complaint authority only and never path localization. A localized performance complaint adds the domain authority fields, then one bare `npm run verify:delivery` runs one targeted iteration. The full audit remains separate and requires an explicit operator request or accepted offer before `npm run verify:perf` may run.
+
+## Decisions
+
+### Renderer
+
+- Decision: Render the orb with React Three Fiber and Drei's `MeshTransmissionMaterial`, adding a vertex-displacement chunk to the material through a wrapped `onBeforeCompile`.
+- Reason: Screen-space transmission gives real refraction, chromatic aberration, and volume attenuation, and injecting displacement at `beginnormal_vertex`/`begin_vertex` makes lighting, the transmission buffer, and the export frame all follow the morphed surface instead of a static sphere.
+- Evidence: `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`.
+
+### View Interaction
+
+- Decision: Use `orbit` with `view.orbit` as the single orientation target, applied to the product camera each frame.
+- Reason: A refractive orb only reads when the viewing angle can be changed against the visible highlights, and there is a real three-dimensional scene, so `non-spatial` would be false.
+- Evidence: `appProductReadiness.viewInteraction` in `src/app/app-acceptance-data.ts`; camera application in `src/app/orb/orb-scene.tsx`.
+
+### Interaction Ownership
+
+- Decision: The canvas owns turning the view through the runtime orientation handle; the panel owns camera distance as an exact number.
+- Reason: Rotation is spatial and belongs beside the output; distance is one scalar users set precisely and reuse between exports, so the two operations do not mirror each other.
+- Evidence: `appProductReadiness.interactionOwnership` entries `view-orbit-handle` and `view-distance-value`.
+
+### Timeline
+
+- Decision: Do not enable the timeline; declare `appTransferMode.animationIntent` mode `autonomous`.
+- Reason: The surface flow is ambient presence with no start, end, or frame a user would seek to, and there is no video export, so a transport would offer nothing to control.
+- Evidence: `appSchema.panels.timeline` is omitted; `appTransferMode.animationIntent` in `src/app/app-acceptance-data.ts`.
+
+### Layers
+
+- Decision: Do not enable layers.
+- Reason: The product edits one orb; there are no multiple editable objects, groups, visibility, or ordering.
+- Evidence: `appSchema.panels.layers` is omitted.
+
+### Controls
+
+- Decision: Group controls by orb entity — State presets, Colors, Glass, Motion, Glow, View — with Background and Image Export as the runtime-owned output sections.
+- Reason: Each section names one thing about the orb, so a user changing "how glassy" never has to hunt across sections; the colour targets live under `appearance.*` because they describe the orb's appearance rather than its glass, motion, or glow parameters.
+- Evidence: `src/app/app-schema.ts` and `appControlSectionInventory` in `src/app/app-acceptance-data.ts`.
+
+### Export
+
+- Decision: Image export only, through the runtime `export-image` action plus an `exportRenderer` that re-renders the live WebGL scene at the requested backing size. Copy Code is an additional clipboard action.
+- Reason: The user asked for PNG-style delivery and a code snippet, not SVG or video; borrowing the live renderer guarantees the export is the frame on screen rather than a second scene that can drift.
+- Evidence: `orbExportRenderer` in `src/app/app-composition.tsx`, `src/app/orb/orb-export-registry.ts`, `src/app/orb/orb-code-snippet.ts`.
+
+### Performance
+
+- Decision: Use lifecycle-aware protected delivery verification.
+- Reason: The runner chooses complete initial functional proof, exact ownership-derived later functional proof, or one request-backed targeted performance iteration; full certification remains operator-only.
+- Evidence: `npm run verify:delivery` protected receipt.
+
+## Decision Trail
+
+### Iteration 1 — Orb Generator first product delivery
+
+- Request: Build an interactive "AI Orb Generator" using React, React Three Fiber, React Three Drei, and Tailwind CSS, with a dark two-pane layout, a refractive/morphing orb, Idle/Thinking/Searching/Speaking state presets, form controls for primary and core colours, refractive index, flow speed, distortion intensity and outer glow, real-time state binding, and a Copy Code button emitting an R3F snippet for the current values.
+- Task type: Schema, custom WebGL renderer, controls, export, acceptance, and performance.
+- User-visible result: The canvas shows a glass orb that refracts a local studio environment, flows continuously, and carries an emissive core and an outer halo. The panel applies four state presets, binds every listed parameter live, exports PNG at 2K/4K/8K, and copies a self-contained R3F component.
+- Source/reference checked: The user prompt; Drei's `MeshTransmissionMaterial` source in `node_modules/@react-three/drei/core/MeshTransmissionMaterial.js`; three's vertex chunk order in `node_modules/three/src/renderers/shaders`; screenshots of the running app at each tuning step under `.toolcraft/browser-artifacts/`.
+- Reference inputs: None. The user supplied a written product brief only, with no external design or motion source to port.
+- Docs/contracts read: `workflow.md`, `schema-reference.md`, `component-rules.md`, `core/runtime-boundary.md`, `core/setup-export.md`, `core/control-selection.md`, `core/performance.md`.
+- Contract rules applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
+- View interaction intent: orbit; `view.orbit` is the one orientation target and the runtime handle is the only surface that writes it.
+- Interaction ownership: The canvas owns direct view rotation; the panel owns camera distance as precise value entry. No other product operation appears on two surfaces.
+- Decision: Keep one WebGL scene for preview and export. Read runtime values through a null-rendering bridge into a ref so a slider drag never re-renders the R3F tree, then damp displayed values toward panel values each frame, which is also what makes preset changes interpolate rather than snap. Integrate flow speed into a phase instead of sampling a clock, so changing speed never jumps the surface. Feed the environment probe to the transmission sampler as its background.
+- Alternatives rejected: A second offscreen renderer for export, because it would drift from the preview; Drei `Lightformer` studio cards, because near-mirror glass reflects their hard quad edges as shards (replaced with soft-falloff panels plus a gradient dome); a back-faced fresnel shell for the outer glow, because it reads as a rind rather than light bleeding past the silhouette (replaced with a camera-facing halo with a punched-out centre so the transmission sampler does not blow out the interior); an HDR environment preset, because it would add a network fetch and make offline and test renders differ.
+- State/output mapping: Runtime `state.values` feed `readOrbParams`, which feeds the render loop through `inputsRef`; the same reader feeds `createOrbCodeSnippet` for Copy Code and the export renderer for PNG, so panel, preview, snippet, and artifact cannot disagree.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Screen-space transmission approximates refraction, so extreme distortion with a very low roughness can still show sampling artifacts. `canvas.renderScale` is intentionally not enabled: the preview already runs at device pixel ratio up to 2 and export renders at its own backing size, so the extra control would add a runtime knob with no product benefit — this is a deliberate deviation from the WebGL default in `core/setup-export.md`.
+
+## Evidence
+
+- Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
+- Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
+- Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Product observations: the rendered orb, the applied state presets, the clipboard snippet, and a decodable 4096x4096 `orb.png` from Export PNG at the default 4K setting are stored under `.toolcraft/browser-artifacts/`.
+
+## Verification
+
+- `npm run typecheck` passes.
+- `npx vitest run src` passes.
+- `node scripts/check-toolcraft-integrity.mjs` passes.
+- `npm run verify:delivery` is the protected first-delivery gate and owns build plus browser acceptance evidence.
+
+## Risks
+
+- Risk: The Drei transmission material overwrites its own `time` uniform from the R3F clock each frame, so the material's internal distortion is not phase-integrated. The product displacement that owns the visible motion is, so a Flow speed change never jumps the surface.
+- Risk: Very large exports allocate a full-size canvas twice, once as WebGL backing and once as the 2D composite, so 8K export is memory-heavy on low-end machines.
+- Risk: Screen-space transmission approximates refraction, so extreme distortion combined with a very low roughness can still show sampling artifacts.
