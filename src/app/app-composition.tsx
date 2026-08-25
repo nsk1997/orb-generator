@@ -7,13 +7,12 @@ import { OrbCanvas } from "./orb/orb-canvas";
 import { createOrbCodeSnippet } from "./orb/orb-code-snippet";
 import { getOrbFrameRenderer } from "./orb/orb-export-registry";
 import {
-  orbStatePresets,
   orbTargets,
   readOrbParams,
   readOrbSceneBackground,
   readOrbViewDistance,
-  readOrbStateActionValue,
 } from "./orb/orb-params";
+import { orbStyles, readOrbStyleId } from "./orb/orb-styles";
 
 const orbExportRenderer: ToolcraftProductExportRenderer = {
   baseFileName: "orb",
@@ -41,32 +40,14 @@ export const appComposition: ToolcraftAppComposition = {
   exportRenderer: orbExportRenderer,
   modelPresentation: { mode: "runtime" },
   rendererPipelineRegistration: orbRendererPipeline,
-  onPanelAction: ({ action, dispatch, reportFeedback, state }) => {
-    const presetId = readOrbStateActionValue(action.value);
-
-    if (presetId) {
-      const preset = orbStatePresets[presetId];
-      const historyGroup = `orb-state:${presetId}:${state.values[orbTargets.ior] ?? ""}`;
-
-      for (const [key, value] of Object.entries(preset)) {
-        dispatch({
-          historyGroup,
-          label: "Orb state",
-          target: orbTargets[key as keyof typeof preset],
-          type: "controls.setValue",
-          value,
-        });
-      }
-
-      return;
-    }
-
+  onPanelAction: ({ action, reportFeedback, state }) => {
     if (action.value !== "orb.copyCode") {
       return;
     }
 
     const snippet = createOrbCodeSnippet(readOrbParams(state.values), {
       backgroundColor: readOrbSceneBackground(state.values),
+      style: orbStyles[readOrbStyleId(state.values[orbTargets.style])],
       viewDistance: readOrbViewDistance(state.values),
     });
 

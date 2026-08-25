@@ -102,11 +102,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Risk: cross-fading doubles every noise sample, so the fbm dropped from three octaves to two to hold cost roughly level; the third octave carried 0.08 weight. Risk: the chosen breathe harmonics repeat at mid-cycle, so the global pulse beats twice per loop — recorded and covered by a test rather than left implicit.
 
+### Iteration 3 — Orb styles composed with states
+
+- Request: We will do all the above things but before it can we have presets of orbs of different different styles and with there states that we already have. Then: start phase 0, then next.
+- Task type: Schema, renderer, controls, acceptance, performance.
+- User-visible result: A Style control offers Glass, Bubble, Frost, and Metal. Each carries its own material, studio, palette, and resting parameters. The four states became Idle, Think, Search, and Speak, applied as energy deltas on top of whichever style is active, so a style stays recognisable in all four. Refractive index and Chromatic aberration disappear on the opaque style, where they do nothing.
+- Source/reference checked: Drei's `MeshTransmissionMaterial` frame loop, the Toolcraft control-layout dependency validator, browser captures of all four styles under software rendering.
+- Reference inputs: None. Written product brief only.
+- Docs/contracts read: `component-rules.md`, `core/control-selection.md`, `core/layout.md`, `schema-reference.md`, `core/performance.md`.
+- Contract rules applied: `controls-product-coverage`, `controls-layout-heuristics`, `control-section-entity-cohesion`, `acceptance-product-observable`, `performance-coverage-levels`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged. Style and state are panel property edits; neither adds a canvas surface.
+- Decision: A style owns everything with no slider — material, studio, palette, core scale, halo size — so it is a stored value rather than a one-shot preset, and structural values re-render the scene while continuous slider values still reach the render loop through a ref. States became deltas rather than twenty authored sets, which cuts tuning to five bases plus four deltas and keeps a state meaning the same thing everywhere. Colour belongs to the style, because a state that set colour would flatten every style into the same look. Metal reuses the same transmission material with `transmission: 0`, which makes Drei skip both buffer passes, so the opaque style costs less rather than the same.
+- Alternatives rejected: A full twenty-set matrix, for tuning cost and state drift. A second material component for the opaque style, once Drei was found to skip its passes at zero transmission. A segmented style control, because Plasma would push it past the four-option cap. Keeping Refractive index visible on Metal, because an inert visible control is exactly what conditional applicability exists to prevent.
+- State/output mapping: `orb.style` and `orb.state` are stored values; a bridge resolves them to the nine slider values and dispatches, skipping the first observation so a reload cannot overwrite restored tweaks. The same style feeds the material, the studio probe, and the Copy Code snippet.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: the style control now rebuilds the environment probe, which is declared in the render pipeline but only proven by eye so far. Risk: Frost reads grainy under software rendering because rough transmission samples sparsely at six samples; it needs checking on real hardware before the sample count is judged. Risk: Bubble is the most expensive style, and could not be rasterised at full canvas size under SwiftShader at all.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Style proof: `src/app/orb/orb-styles.test.ts` proves every style/state combination lands inside its slider domain, that colour is style-owned across all four states, that each state is more agitated than rest in every style, and that only the opaque style skips the transmission passes. `src/app/orb/orb-code-snippet.test.ts` proves Copy Code emits the selected style's material, studio, and geometry rather than the default one.
 - Loop proof: `src/app/orb/orb-loop.test.ts` proves the cross-fade identity for an arbitrary noise function, continuity across the wrap, the exact pulse loop, phase wrapping over 5000 frames, and that the shipped shader keeps both the looping form and the original drift rate. `src/app/orb/orb-displacement.test.ts` proves injection against three's real physical and standard vertex shaders, uniform identity, idempotence, chaining onto a material's own `onBeforeCompile`, and a hard failure when a chunk marker is missing.
 - Product observations: the rendered orb, the applied state presets, the clipboard snippet, and a decodable 4096x4096 `orb.png` from Export PNG at the default 4K setting are stored under `.toolcraft/browser-artifacts/`.
 

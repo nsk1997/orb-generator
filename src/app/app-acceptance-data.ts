@@ -89,10 +89,24 @@ export const appProductReadiness: ToolcraftProductReadiness = {
 export const appControlSectionInventory: readonly ToolcraftControlSectionInventoryEntry[] =
   [
     {
-      entity: "Orb state preset",
-      entityId: "orb-state-preset",
+      entity: "Orb surface",
+      entityId: "orb-surface",
       groupingReason:
-        "One command group that moves every orb parameter to a named assistant state.",
+        "The style selector lives beside the surface properties it governs, because refraction and aberration only apply to the styles that transmit light.",
+      id: "orb-style",
+      targets: [
+        "orb.style",
+        "orb.ior",
+        "orb.roughness",
+        "orb.chromaticAberration",
+      ],
+      title: "Style",
+    },
+    {
+      entity: "Orb state",
+      entityId: "orb-state",
+      groupingReason:
+        "One control for how agitated the orb is, applied on top of whichever style is selected.",
       id: "orb-state",
       targets: ["orb.state"],
       title: "State",
@@ -105,15 +119,6 @@ export const appControlSectionInventory: readonly ToolcraftControlSectionInvento
       id: "orb-colors",
       targets: ["appearance.primaryColor", "appearance.coreColor"],
       title: "Colors",
-    },
-    {
-      entity: "Orb glass surface",
-      entityId: "orb-glass",
-      groupingReason:
-        "Refractive index, roughness, and chromatic aberration are the three properties of the single transmissive shell.",
-      id: "orb-glass",
-      targets: ["orb.ior", "orb.roughness", "orb.chromaticAberration"],
-      title: "Glass",
     },
     {
       entity: "Orb surface motion",
@@ -191,27 +196,37 @@ function control(
 
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
   {
-    actionCoverage: [
-      "orb.state.idle",
-      "orb.state.thinking",
-      "orb.state.searching",
-      "orb.state.speaking",
-    ],
     automated: true,
-    automatedTestName: "applies every state preset to all orb parameters",
+    automatedTestName: "applies each style's material, studio, and palette",
     browser: true,
-    browserTestName:
-      "browser: each state preset moves the sliders and the rendered orb",
-    componentType: "actions",
-    evidence: "command-side-effect",
+    browserTestName: "browser: each style changes the rendered orb and its sliders",
+    componentType: "select",
+    evidence: "rendered-pixels",
     expectedObservable:
-      "Each preset writes its complete parameter set into the visible sliders and colours, one undo restores the previous set, and the orb eases to the new surface.",
-    fixture: "default orb at the Idle preset",
+      "Choosing a style writes that style's palette and resting parameters into the visible controls, rebuilds the studio it reflects, and switches the surface material; the opaque style also hides Refractive index and Chromatic aberration.",
+    fixture: "default orb at the Glass style, Idle state",
+    id: "orb.style",
+    kind: "control",
+    optionCoverage: "each-visible-item",
+    target: "orb.style",
+    userAction: "Choose Glass, Bubble, Frost, and Metal in turn.",
+  },
+  {
+    automated: true,
+    automatedTestName: "applies every state delta on top of the active style",
+    browser: true,
+    browserTestName: "browser: each state moves the sliders and the rendered orb",
+    componentType: "segmented",
+    evidence: "rendered-pixels",
+    expectedObservable:
+      "Each state writes the resolved parameter set into the visible sliders, one undo restores the previous set, and the orb eases to the new surface while keeping the active style's colours.",
+    fixture: "default orb at the Glass style, Idle state",
     id: "orb.state",
     kind: "control",
+    optionCoverage: "each-visible-item",
     target: "orb.state",
     userAction:
-      "Click Idle, Thinking, Searching, and Speaking in turn and read the Glass, Motion, Glow, and Colors controls.",
+      "Select Idle, Think, Search, and Speak in turn and read the Style, Motion, and Glow controls.",
   },
   control({
     componentType: "color",

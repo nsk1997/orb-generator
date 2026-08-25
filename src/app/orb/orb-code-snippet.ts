@@ -1,5 +1,6 @@
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
+import type { OrbStyle } from "./orb-styles";
 
 /** Matches the live renderer: glass stays light, attenuation carries colour. */
 function lightenTowardWhite(hex: string, amount: number): string {
@@ -23,10 +24,16 @@ function round(value: number, places = 3): string {
  */
 export function createOrbCodeSnippet(
   params: OrbParams,
-  options: Readonly<{ backgroundColor: string; viewDistance: number }>,
+  options: Readonly<{
+    backgroundColor: string;
+    style: OrbStyle;
+    viewDistance: number;
+  }>,
 ): string {
+  const { style } = options;
+  const { material, studio } = style;
   const vertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}`.trim();
-  const glassTint = lightenTowardWhite(params.primaryColor, 0.55);
+  const glassTint = lightenTowardWhite(params.primaryColor, style.tintLift);
 
   return `// Orb generated with the Orb Generator.
 // npm i three @react-three/fiber @react-three/drei
@@ -46,6 +53,7 @@ const ORB = {
   glowSpread: ${round(params.glowSpread)},
   ior: ${round(params.ior)},
   glassTint: "${glassTint}",
+  style: "${style.id}",
   primaryColor: "${params.primaryColor}",
   roughness: ${round(params.roughness)},
 };
@@ -166,7 +174,7 @@ function useDisplacementUniforms(scale, distortion) {
 
 function Orb() {
   const bodyUniforms = useDisplacementUniforms(1, ORB.distortion);
-  const coreUniforms = useDisplacementUniforms(0.42, ORB.distortion * 0.55);
+  const coreUniforms = useDisplacementUniforms(${style.coreScale}, ORB.distortion * 0.55);
   const phase = useRef(0);
   const halo = useRef(null);
 
@@ -214,9 +222,9 @@ function Orb() {
             fragmentShader={ORB_DOME_FRAGMENT}
             side={THREE.BackSide}
             uniforms={{
-              orbDomeBottom: { value: new THREE.Color("#282A4A") },
-              orbDomeHorizon: { value: new THREE.Color("#3C3F6B") },
-              orbDomeTop: { value: new THREE.Color("#9AA1E0") },
+              orbDomeBottom: { value: new THREE.Color("${studio.domeBottom}") },
+              orbDomeHorizon: { value: new THREE.Color("${studio.domeHorizon}") },
+              orbDomeTop: { value: new THREE.Color("${studio.domeTop}") },
             }}
             vertexShader={ORB_DOME_VERTEX}
           />
@@ -233,7 +241,7 @@ function Orb() {
               transparent
               uniforms={{
                 orbCardColor: { value: new THREE.Color(card.color) },
-                orbCardIntensity: { value: card.intensity },
+                orbCardIntensity: { value: card.intensity * ${studio.cardIntensityScale} },
                 orbCardSoftness: { value: card.softness },
               }}
               vertexShader={ORB_CARD_VERTEX}
@@ -263,32 +271,33 @@ function Orb() {
         <MeshTransmissionMaterial
           anisotropicBlur={0.4}
           attenuationColor={ORB.primaryColor}
-          attenuationDistance={2.6}
-          clearcoat={1}
-          clearcoatRoughness={0.06}
-          iridescence={0.22}
-          iridescenceIOR={1.35}
-          iridescenceThicknessRange={[120, 560]}
-          backside
-          backsideThickness={0.22}
+          attenuationDistance={${material.attenuationDistance}}
+          clearcoat={${material.clearcoat}}
+          clearcoatRoughness={${material.clearcoatRoughness}}
+          iridescence={${material.iridescence}}
+          iridescenceIOR={${material.iridescenceIOR}}
+          iridescenceThicknessRange={[${material.iridescenceThicknessRange[0]}, ${material.iridescenceThicknessRange[1]}]}
+          backside={${material.transmission > 0}}
+          backsideThickness={${material.backsideThickness}}
           chromaticAberration={ORB.chromaticAberration}
           color={ORB.glassTint}
           distortion={0.06}
           distortionScale={0.5}
-          envMapIntensity={2}
+          envMapIntensity={${material.envMapIntensity}}
+          metalness={${material.metalness}}
           ior={ORB.ior}
           ref={attachBody}
           resolution={512}
           roughness={ORB.roughness}
-          samples={8}
+          samples={${material.samples}}
           temporalDistortion={0.02}
-          thickness={0.62}
-          transmission={1}
+          thickness={${material.thickness}}
+          transmission={${material.transmission}}
         />
       </mesh>
 
       <mesh ref={halo} renderOrder={-1}>
-        <planeGeometry args={[4.2, 4.2]} />
+        <planeGeometry args={[${style.haloSize}, ${style.haloSize}]} />
         <shaderMaterial
           blending={THREE.AdditiveBlending}
           depthTest={false}

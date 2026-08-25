@@ -2,14 +2,17 @@ import { defineToolcraft } from "@/toolcraft/runtime";
 
 import { appIdentity } from "./app-identity";
 import {
-  getOrbStateActionValue,
   orbDefaults,
   orbSceneBackgroundDefault,
-  orbStateLabels,
-  orbStateOrder,
   orbTargets,
   orbViewDistanceDefault,
 } from "./orb/orb-params";
+import {
+  orbStateDeltas,
+  orbStateOrder,
+  orbStyleOrder,
+  orbStyles,
+} from "./orb/orb-styles";
 
 const always = { mode: "always" } as const;
 
@@ -26,20 +29,104 @@ export const appSchema = defineToolcraft({
       sections: [
         {
           controls: {
-            statePreset: {
-              actions: orbStateOrder.map((id) => ({
-                label: orbStateLabels[id],
-                value: getOrbStateActionValue(id),
-                variant: "outline" as const,
-              })),
+            style: {
               applicability: always,
+              defaultValue: "glass",
+              description:
+                "The surface material and the studio it reflects. Each style carries its own palette and resting parameters.",
               label: false,
+              options: orbStyleOrder.map((id) => ({
+                label: orbStyles[id].label,
+                value: id,
+              })),
               orderRole: "mode",
               performanceReason:
-                "A preset writes values that the renderer eases toward; it adds no pass and no new resource.",
+                "Switching style rebuilds the environment probe once, then reuses it.",
               performanceRole: "responsiveness",
-              target: "orb.state",
-              type: "actions",
+              target: orbTargets.style,
+              type: "select",
+            },
+            ior: {
+              // Index of refraction does nothing at metalness 1, so the
+              // control disappears rather than sitting there inert.
+              applicability: {
+                all: [{ notEquals: "metal", target: orbTargets.style }],
+                mode: "conditional",
+              },
+              defaultValue: orbDefaults.ior,
+              description:
+                "How sharply light bends inside the orb. 1.0 is air, 1.5 is glass, 2.4 is diamond.",
+              label: "Refractive index",
+              max: 3,
+              min: 1,
+              orderRole: "primary",
+              performanceReason:
+                "Refraction is resolved by the transmission sampler that already runs every frame.",
+              performanceRole: "responsiveness",
+              sliderValueKind: "continuous",
+              step: 0.01,
+              target: orbTargets.ior,
+              type: "slider",
+            },
+            roughness: {
+              applicability: always,
+              defaultValue: orbDefaults.roughness,
+              label: "Roughness",
+              max: 1,
+              min: 0,
+              orderRole: "detail",
+              performanceReason:
+                "Roughness only changes the blur of samples the material already takes.",
+              performanceRole: "responsiveness",
+              sliderValueKind: "continuous",
+              step: 0.01,
+              target: orbTargets.roughness,
+              type: "slider",
+            },
+            chromaticAberration: {
+              // Aberration is a property of transmitted light; an opaque
+              // style has none to split.
+              applicability: {
+                all: [{ notEquals: "metal", target: orbTargets.style }],
+                mode: "conditional",
+              },
+              defaultValue: orbDefaults.chromaticAberration,
+              description:
+                "Splits red, green, and blue through different refraction paths for a prismatic edge.",
+              label: "Chromatic aberration",
+              max: 1,
+              min: 0,
+              orderRole: "detail",
+              performanceReason:
+                "Aberration reuses the same transmission samples with offset indices of refraction.",
+              performanceRole: "responsiveness",
+              sliderValueKind: "continuous",
+              step: 0.01,
+              target: orbTargets.chromaticAberration,
+              type: "slider",
+            },
+          },
+          id: "orb-style",
+          title: "Style",
+        },
+        {
+          controls: {
+            state: {
+              applicability: always,
+              defaultValue: "idle",
+              description:
+                "How agitated the surface is. States change energy, not identity, so a style stays recognisable in all four.",
+              label: false,
+              options: orbStateOrder.map((id) => ({
+                label: orbStateDeltas[id].label,
+                value: id,
+              })),
+              orderRole: "mode",
+              performanceReason:
+                "A state writes values the renderer eases toward; it adds no pass and no new resource.",
+              performanceRole: "responsiveness",
+              target: orbTargets.state,
+              type: "segmented",
             },
           },
           id: "orb-state",
@@ -72,61 +159,6 @@ export const appSchema = defineToolcraft({
           },
           id: "orb-colors",
           title: "Colors",
-        },
-        {
-          controls: {
-            ior: {
-              applicability: always,
-              defaultValue: orbDefaults.ior,
-              description:
-                "How sharply light bends inside the orb. 1.0 is air, 1.5 is glass, 2.4 is diamond.",
-              label: "Refractive index",
-              max: 3,
-              min: 1,
-              orderRole: "primary",
-              performanceReason:
-                "Refraction is resolved by the transmission sampler that already runs every frame.",
-              performanceRole: "responsiveness",
-              sliderValueKind: "continuous",
-              step: 0.01,
-              target: orbTargets.ior,
-              type: "slider",
-            },
-            roughness: {
-              applicability: always,
-              defaultValue: orbDefaults.roughness,
-              label: "Roughness",
-              max: 1,
-              min: 0,
-              orderRole: "detail",
-              performanceReason:
-                "Roughness only changes the blur of samples the material already takes.",
-              performanceRole: "responsiveness",
-              sliderValueKind: "continuous",
-              step: 0.01,
-              target: orbTargets.roughness,
-              type: "slider",
-            },
-            chromaticAberration: {
-              applicability: always,
-              defaultValue: orbDefaults.chromaticAberration,
-              description:
-                "Splits red, green, and blue through different refraction paths for a prismatic edge.",
-              label: "Chromatic aberration",
-              max: 1,
-              min: 0,
-              orderRole: "detail",
-              performanceReason:
-                "Aberration reuses the same transmission samples with offset indices of refraction.",
-              performanceRole: "responsiveness",
-              sliderValueKind: "continuous",
-              step: 0.01,
-              target: orbTargets.chromaticAberration,
-              type: "slider",
-            },
-          },
-          id: "orb-glass",
-          title: "Glass",
         },
         {
           controls: {

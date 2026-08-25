@@ -168,15 +168,17 @@ void main() {
  * Continuous surround for the environment probe. Light cards alone leave the
  * probe mostly black, and clear glass then refracts as a shattered mirror.
  */
-export function createOrbDomeMaterial(): ShaderMaterial {
+export function createOrbDomeMaterial(
+  colors: Readonly<{ bottom: string; horizon: string; top: string }>,
+): ShaderMaterial {
   return new ShaderMaterial({
     depthWrite: false,
     fragmentShader: orbDomeFragmentShader,
     side: BackSide,
     uniforms: {
-      orbDomeBottom: { value: new Color("#282A4A") },
-      orbDomeHorizon: { value: new Color("#3C3F6B") },
-      orbDomeTop: { value: new Color("#9AA1E0") },
+      orbDomeBottom: { value: new Color(colors.bottom) },
+      orbDomeHorizon: { value: new Color(colors.horizon) },
+      orbDomeTop: { value: new Color(colors.top) },
     },
     vertexShader: orbDomeVertexShader,
   });

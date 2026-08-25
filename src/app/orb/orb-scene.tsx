@@ -27,6 +27,7 @@ import {
 import { registerOrbFrameRenderer } from "./orb-export-registry";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import { orbDefaults, orbViewDistanceDefault, type OrbParams } from "./orb-params";
+import { orbStyles, type OrbStudioConfig, type OrbStyleId } from "./orb-styles";
 
 export type OrbViewPose = {
   position: readonly [number, number, number];
@@ -72,14 +73,23 @@ function useSmoothedColor(hex: string): Color {
 
 export function OrbScene({
   inputsRef,
+  styleId,
 }: Readonly<{
   inputsRef: React.RefObject<OrbSceneInputs>;
+  styleId: OrbStyleId;
 }>): React.JSX.Element {
+  // Structural values re-render the scene; continuous slider values reach the
+  // render loop through the ref so a drag never re-renders the WebGL tree.
+  const style = orbStyles[styleId];
+  const { material } = style;
   const bodyMaterialRef = React.useRef<OrbTransmissionMaterial | null>(null);
   const bodyUniforms = React.useRef<OrbDisplacementUniforms | null>(null);
 
   const glowMaterial = React.useMemo(() => createOrbGlowMaterial(), []);
-  const coreMaterial = React.useMemo(() => createOrbCoreMaterial(0.34), []);
+  const coreMaterial = React.useMemo(
+    () => createOrbCoreMaterial(style.coreScale),
+    [style.coreScale],
+  );
 
   const bodyRef = React.useRef<Mesh | null>(null);
   const haloRef = React.useRef<Mesh | null>(null);
@@ -251,7 +261,7 @@ export function OrbScene({
 
   return (
     <>
-      <StudioEnvironment />
+      <StudioEnvironment studio={style.studio} />
       <mesh material={coreMaterial} renderOrder={0}>
         <icosahedronGeometry args={[1, 10]} />
       </mesh>
@@ -259,31 +269,33 @@ export function OrbScene({
         <icosahedronGeometry args={[1, 24]} />
         <MeshTransmissionMaterial
           anisotropicBlur={0.4}
+          attenuationDistance={material.attenuationDistance}
           background={environmentMap ?? undefined}
-          attenuationDistance={2.6}
-          backside
-          backsideThickness={0.22}
-          chromaticAberration={orbDefaults.chromaticAberration}
+          backside={material.transmission > 0}
+          backsideThickness={material.backsideThickness}
+          chromaticAberration={style.base.chromaticAberration}
+          clearcoat={material.clearcoat}
+          clearcoatRoughness={material.clearcoatRoughness}
           distortion={0.06}
           distortionScale={0.5}
-          envMapIntensity={2}
-          ior={orbDefaults.ior}
-          clearcoat={1}
-          clearcoatRoughness={0.06}
-          iridescence={0.22}
-          iridescenceIOR={1.35}
-          iridescenceThicknessRange={[120, 560]}
+          envMapIntensity={material.envMapIntensity}
+          ior={style.base.ior}
+          iridescence={material.iridescence}
+          iridescenceIOR={material.iridescenceIOR}
+          iridescenceThicknessRange={material.iridescenceThicknessRange}
+          key={styleId}
+          metalness={material.metalness}
           ref={attachBodyMaterial as never}
           resolution={1024}
-          roughness={orbDefaults.roughness}
-          samples={10}
+          roughness={style.base.roughness}
+          samples={material.samples}
           temporalDistortion={0.02}
-          thickness={0.62}
-          transmission={1}
+          thickness={material.thickness}
+          transmission={material.transmission}
         />
       </mesh>
       <mesh material={glowMaterial} ref={haloRef} renderOrder={-1}>
-        <planeGeometry args={[4.2, 4.2]} />
+        <planeGeometry args={[style.haloSize, style.haloSize]} />
       </mesh>
     </>
   );
@@ -352,10 +364,16 @@ const orbLightCards: readonly OrbLightCard[] = [
 
 function OrbLightPanel({
   card,
-}: Readonly<{ card: OrbLightCard }>): React.JSX.Element {
+  intensityScale,
+}: Readonly<{ card: OrbLightCard; intensityScale: number }>): React.JSX.Element {
   const material = React.useMemo(
-    () => createOrbLightCardMaterial(card.color, card.intensity, card.softness),
-    [card.color, card.intensity, card.softness],
+    () =>
+      createOrbLightCardMaterial(
+        card.color,
+        card.intensity * intensityScale,
+        card.softness,
+      ),
+    [card.color, card.intensity, card.softness, intensityScale],
   );
 
   React.useEffect(() => () => material.dispose(), [material]);
@@ -376,8 +394,18 @@ function OrbLightPanel({
  * A local studio built from soft light panels and a gradient dome. It never
  * fetches an HDR, so refraction highlights are identical offline and in export.
  */
-function StudioEnvironment(): React.JSX.Element {
-  const domeMaterial = React.useMemo(() => createOrbDomeMaterial(), []);
+function StudioEnvironment({
+  studio,
+}: Readonly<{ studio: OrbStudioConfig }>): React.JSX.Element {
+  const domeMaterial = React.useMemo(
+    () =>
+      createOrbDomeMaterial({
+        bottom: studio.domeBottom,
+        horizon: studio.domeHorizon,
+        top: studio.domeTop,
+      }),
+    [studio.domeBottom, studio.domeHorizon, studio.domeTop],
+  );
 
   React.useEffect(() => () => domeMaterial.dispose(), [domeMaterial]);
 
@@ -389,7 +417,11 @@ function StudioEnvironment(): React.JSX.Element {
           <sphereGeometry args={[1, 32, 24]} />
         </mesh>
         {orbLightCards.map((card, index) => (
-          <OrbLightPanel card={card} key={index} />
+          <OrbLightPanel
+            card={card}
+            intensityScale={studio.cardIntensityScale}
+            key={index}
+          />
         ))}
       </Environment>
     </>

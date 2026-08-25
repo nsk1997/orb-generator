@@ -81,8 +81,8 @@ describe("appSchema", () => {
     expect(titles[0]).toBe("Setup");
     expect(titles).toEqual(
       expect.arrayContaining([
+        "Style",
         "State",
-        "Glass",
         "Motion",
         "Glow",
         "View",

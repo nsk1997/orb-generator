@@ -1,3 +1,5 @@
+import { orbStyles } from "./orb-styles";
+
 export const orbTargets = {
   chromaticAberration: "orb.chromaticAberration",
   coreColor: "appearance.coreColor",
@@ -10,6 +12,8 @@ export const orbTargets = {
   primaryColor: "appearance.primaryColor",
   roughness: "orb.roughness",
   sceneBackground: "scene.background",
+  state: "orb.state",
+  style: "orb.style",
   viewDistance: "view.distance",
   viewOrbit: "view.orbit",
 } as const;
@@ -26,103 +30,10 @@ export type OrbParams = {
   roughness: number;
 };
 
-export const orbDefaults: OrbParams = {
-  chromaticAberration: 0.32,
-  coreColor: "#22D3EE",
-  distortion: 0.3,
-  flowSpeed: 0.55,
-  glowIntensity: 0.8,
-  glowSpread: 2.8,
-  ior: 1.42,
-  primaryColor: "#7C5CFF",
-  roughness: 0.06,
-};
+export const orbDefaults: OrbParams = orbStyles.glass.base;
 
 export const orbSceneBackgroundDefault = "#0A0A12";
 export const orbViewDistanceDefault = 8;
-
-/**
- * Preset states an assistant orb moves through. Each one is a complete
- * parameter set so applying a preset never leaves a stale slider behind.
- */
-export type OrbStateId = "idle" | "thinking" | "searching" | "speaking";
-
-export const orbStatePresets: Record<OrbStateId, OrbParams> = {
-  idle: {
-    chromaticAberration: 0.28,
-    coreColor: "#22D3EE",
-    distortion: 0.16,
-    flowSpeed: 0.28,
-    glowIntensity: 0.6,
-    glowSpread: 3.2,
-    ior: 1.4,
-    primaryColor: "#7C5CFF",
-    roughness: 0.06,
-  },
-  thinking: {
-    chromaticAberration: 0.46,
-    coreColor: "#A78BFA",
-    distortion: 0.42,
-    flowSpeed: 0.9,
-    glowIntensity: 0.95,
-    glowSpread: 2.6,
-    ior: 1.62,
-    primaryColor: "#5B7CFF",
-    roughness: 0.04,
-  },
-  searching: {
-    chromaticAberration: 0.62,
-    coreColor: "#34D399",
-    distortion: 0.3,
-    flowSpeed: 1.85,
-    glowIntensity: 1.0,
-    glowSpread: 2.1,
-    ior: 1.86,
-    primaryColor: "#22D3EE",
-    roughness: 0.02,
-  },
-  speaking: {
-    chromaticAberration: 0.34,
-    coreColor: "#FDE68A",
-    distortion: 0.5,
-    flowSpeed: 1.25,
-    glowIntensity: 1.15,
-    glowSpread: 1.9,
-    ior: 1.34,
-    primaryColor: "#FF6FB1",
-    roughness: 0.08,
-  },
-};
-
-export const orbStateOrder: readonly OrbStateId[] = [
-  "idle",
-  "thinking",
-  "searching",
-  "speaking",
-];
-
-export const orbStateLabels: Record<OrbStateId, string> = {
-  idle: "Idle",
-  searching: "Searching",
-  speaking: "Speaking",
-  thinking: "Thinking",
-};
-
-export const orbStateActionPrefix = "orb.state.";
-
-export function getOrbStateActionValue(id: OrbStateId): string {
-  return `${orbStateActionPrefix}${id}`;
-}
-
-export function readOrbStateActionValue(value: string): OrbStateId | null {
-  if (!value.startsWith(orbStateActionPrefix)) {
-    return null;
-  }
-
-  const id = value.slice(orbStateActionPrefix.length);
-
-  return orbStateOrder.includes(id as OrbStateId) ? (id as OrbStateId) : null;
-}
 
 function readNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
