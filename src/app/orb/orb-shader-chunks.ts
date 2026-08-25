@@ -72,25 +72,50 @@ float orbSimplex(vec3 v) {
 /**
  * `orbFlow` is a distance-like phase, not a raw clock: the app integrates
  * speed over time on the CPU so changing Flow speed never snaps the surface.
+ * It is wrapped to `ORB_LOOP_SPAN`, so the surface returns to exactly where it
+ * started every cycle and a captured cycle can be looped without a visible cut.
  */
+export const orbLoopSpan = 6;
+
 export const orbDisplacementChunk = /* glsl */ `
 uniform float orbFlow;
 uniform float orbDistortion;
 uniform float orbScale;
 
-float orbFbm(vec3 p) {
-  return 0.66 * orbSimplex(p)
-       + 0.26 * orbSimplex(p * 1.97)
-       + 0.08 * orbSimplex(p * 3.71);
+const float ORB_LOOP_SPAN = ${orbLoopSpan.toFixed(1)};
+const float ORB_TAU = 6.2831853;
+
+/**
+ * Seamless flow. Translating a noise field never returns to its start, so the
+ * field is sampled twice, one full drift apart, and cross-faded across the
+ * cycle: at t=0 and t=1 both expressions resolve to the same sample.
+ */
+float orbLoopNoise(vec3 p, vec3 drift, float t) {
+  return mix(orbSimplex(p + drift * t), orbSimplex(p + drift * (t - 1.0)), t);
+}
+
+float orbLoopFbm(vec3 p, vec3 drift, float t) {
+  // Two octaves, not three: cross-fading doubles every sample, and the third
+  // octave carried too little weight to justify the extra cost.
+  return 0.72 * orbLoopNoise(p, drift, t)
+       + 0.28 * orbLoopNoise(p * 1.97, drift * 1.97, t);
 }
 
 vec3 orbDisplace(vec3 p, float amount) {
   vec3 unit = normalize(p);
-  // Two scales only: a large travelling swell owns the silhouette, a softer
-  // band adds surface interest. Higher octaves read as foil, not liquid.
-  float swell = orbSimplex(unit * 0.85 + vec3(orbFlow * 0.55, -orbFlow * 0.41, orbFlow * 0.27));
-  float ripple = orbFbm(unit * 1.35 + vec3(0.0, orbFlow * 0.72, orbFlow * 0.44));
-  float breathe = orbSimplex(vec3(orbFlow * 0.3)) * 0.18;
+  float t = fract(orbFlow / ORB_LOOP_SPAN);
+  float angle = t * ORB_TAU;
+
+  // Drift per cycle equals the old per-unit-phase travel times the span, so
+  // the motion keeps its original rate while gaining a loop point.
+  const vec3 swellDrift = vec3(3.3, -2.46, 1.62);
+  const vec3 rippleDrift = vec3(0.0, 4.32, 2.64);
+
+  float swell = orbLoopNoise(unit * 0.85, swellDrift, t);
+  float ripple = orbLoopFbm(unit * 1.35, rippleDrift, t);
+  // Harmonics of the cycle, so the global pulse loops exactly and for free.
+  float breathe = (sin(angle) * 0.7 + sin(angle * 2.0 + 1.3) * 0.3) * 0.18;
+
   float offset = amount * 0.72 * (0.56 * swell + 0.34 * ripple + breathe);
   return unit * (orbScale + offset);
 }

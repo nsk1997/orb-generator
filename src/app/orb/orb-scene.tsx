@@ -11,18 +11,21 @@ import {
   Vector3,
   type Texture,
   type MeshPhysicalMaterial,
-  type WebGLProgramParametersWithUniforms,
 } from "three";
 
 import {
-  applyOrbDisplacementToShader,
   createOrbCoreMaterial,
   createOrbDomeMaterial,
   createOrbGlowMaterial,
   createOrbLightCardMaterial,
-  type OrbDisplacementUniforms,
 } from "./orb-materials";
+import {
+  attachOrbDisplacement,
+  createOrbDisplacementUniforms,
+  type OrbDisplacementUniforms,
+} from "./orb-displacement";
 import { registerOrbFrameRenderer } from "./orb-export-registry";
+import { orbLoopSpan } from "./orb-shader-chunks";
 import { orbDefaults, orbViewDistanceDefault, type OrbParams } from "./orb-params";
 
 export type OrbViewPose = {
@@ -123,22 +126,10 @@ export function OrbScene({
         return;
       }
 
-      const uniforms: OrbDisplacementUniforms = {
-        orbDistortion: { value: orbDefaults.distortion },
-        orbFlow: { value: 0 },
-        orbScale: { value: 1 },
-      };
-      const inherited = material.onBeforeCompile.bind(material);
+      const uniforms = createOrbDisplacementUniforms(1);
+      uniforms.orbDistortion.value = orbDefaults.distortion;
 
-      material.onBeforeCompile = (
-        shader: WebGLProgramParametersWithUniforms,
-        renderer,
-      ) => {
-        inherited(shader, renderer);
-        applyOrbDisplacementToShader(shader, uniforms);
-      };
-      material.customProgramCacheKey = () => "orb-displaced-transmission";
-      material.needsUpdate = true;
+      attachOrbDisplacement(material, uniforms, "orb-displaced-transmission");
       bodyUniforms.current = uniforms;
     },
     [],
@@ -198,8 +189,10 @@ export function OrbScene({
       step,
     );
 
-    // Integrating speed keeps the surface continuous when speed changes.
-    state.flowPhase += step * state.flowSpeed;
+    // Integrating speed keeps the surface continuous when speed changes;
+    // wrapping to the loop span keeps float precision exact and gives every
+    // layer one shared cycle to return to.
+    state.flowPhase = (state.flowPhase + step * state.flowSpeed) % orbLoopSpan;
 
     targetPrimary.set(params.primaryColor);
     targetCore.set(params.coreColor);
@@ -228,7 +221,10 @@ export function OrbScene({
     glowMaterial.uniforms.orbGlowSpread.value = state.glowSpread;
 
     coreMaterial.uniforms.orbDistortion.value = state.distortion * 0.55;
-    coreMaterial.uniforms.orbFlow.value = state.flowPhase * 1.35;
+    // Same phase as the shell: a seamless capture needs one period for the
+    // whole orb, and the core already reads differently from its smaller
+    // scale and lower distortion.
+    coreMaterial.uniforms.orbFlow.value = state.flowPhase;
     coreMaterial.uniforms.orbCoreColor.value.copy(shownCore);
     coreMaterial.uniforms.orbCoreIntensity.value =
       0.5 + state.glowIntensity * 0.28;

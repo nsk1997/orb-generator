@@ -84,11 +84,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Screen-space transmission approximates refraction, so extreme distortion with a very low roughness can still show sampling artifacts. `canvas.renderScale` is intentionally not enabled: the preview already runs at device pixel ratio up to 2 and export renders at its own backing size, so the extra control would add a runtime knob with no product benefit — this is a deliberate deviation from the WebGL default in `core/setup-export.md`.
 
+### Iteration 2 — Seamless surface loop and a reusable displacement attachment
+
+- Request: Start phase 0 — swap the onBeforeCompile hack for three-custom-shader-material, and make the noise loop over a fixed period, before any style is tuned.
+- Task type: Renderer, shader, unit proof.
+- User-visible result: The surface now returns to exactly where it started every cycle, so a captured cycle can be looped without a cut. Motion keeps its previous rate and reads slightly softer and rounder.
+- Source/reference checked: Drei's `MeshTransmissionMaterial` module exports, three-custom-shader-material 6.4.0 package typings and vanilla build, three's `ShaderLib` vertex sources.
+- Reference inputs: None. Continuation of the written product brief.
+- Docs/contracts read: `workflow.md`, `core/runtime-boundary.md`, `core/performance.md`, `renderer-technique.md`.
+- Contract rules applied: `runtime-shell-required`, `canvas-surface-preserved`, `renderer-technique-inventory`.
+- View interaction intent: Unchanged; orbit with `view.orbit` as the only orientation target.
+- Interaction ownership: Unchanged; no new user-facing surfaces.
+- Decision: Rejected three-custom-shader-material after inspecting it. It does chain a base material's existing `onBeforeCompile` and accepts a material instance, but Drei exports only the `MeshTransmissionMaterial` component and never its class, and that component owns the per-frame backside and buffer passes. Wrapping it would mean reimplementing Drei's transmission loop. Instead the existing injection moved to `orb-displacement.ts`, became material-agnostic, gained an idempotence guard, and now throws when a chunk marker is absent. For the loop, a translating noise field can never return, so each sample is taken twice one full drift apart and cross-faded across the cycle; the global pulse became harmonics of the cycle angle, and the integrated phase wraps to the loop span.
+- Alternatives rejected: three-custom-shader-material, for the reason above. Rotating the noise domain, which loops exactly but reads as rigid spinning rather than flow. Higher-dimensional noise, which needs five dimensions for a looping three-dimensional field. Wall-clock browser sampling as the loop proof, because the render loop clamps its step to 1/20s and phase therefore advances slower than real time under software rendering.
+- State/output mapping: `orb.flowSpeed` still integrates into `flowPhase`, now wrapped to `orbLoopSpan`; every layer shares that one phase so a future capture has a single period. Loop duration is `orbLoopSpan / flowSpeed` seconds.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: cross-fading doubles every noise sample, so the fbm dropped from three octaves to two to hold cost roughly level; the third octave carried 0.08 weight. Risk: the chosen breathe harmonics repeat at mid-cycle, so the global pulse beats twice per loop — recorded and covered by a test rather than left implicit.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Loop proof: `src/app/orb/orb-loop.test.ts` proves the cross-fade identity for an arbitrary noise function, continuity across the wrap, the exact pulse loop, phase wrapping over 5000 frames, and that the shipped shader keeps both the looping form and the original drift rate. `src/app/orb/orb-displacement.test.ts` proves injection against three's real physical and standard vertex shaders, uniform identity, idempotence, chaining onto a material's own `onBeforeCompile`, and a hard failure when a chunk marker is missing.
 - Product observations: the rendered orb, the applied state presets, the clipboard snippet, and a decodable 4096x4096 `orb.png` from Export PNG at the default 4K setting are stored under `.toolcraft/browser-artifacts/`.
 
 ## Verification

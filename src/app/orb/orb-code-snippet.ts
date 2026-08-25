@@ -1,4 +1,4 @@
-import { orbNoiseChunk, orbDisplacementChunk } from "./orb-shader-chunks";
+import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 
 /** Matches the live renderer: glass stays light, attenuation carries colour. */
@@ -34,6 +34,8 @@ import { useMemo, useRef, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, MeshTransmissionMaterial } from "@react-three/drei";
 import * as THREE from "three";
+
+const ORB_LOOP_SPAN = ${orbLoopSpan};
 
 const ORB = {
   chromaticAberration: ${round(params.chromaticAberration)},
@@ -193,9 +195,11 @@ function Orb() {
   );
 
   useFrame(({ camera }, delta) => {
-    phase.current += Math.min(delta, 1 / 20) * ORB.flowSpeed;
+    // Wrapped to the loop span so the surface returns to its start every
+    // cycle; one cycle lasts ORB_LOOP_SPAN / flowSpeed seconds.
+    phase.current = (phase.current + Math.min(delta, 1 / 20) * ORB.flowSpeed) % ORB_LOOP_SPAN;
     bodyUniforms.orbFlow.value = phase.current;
-    coreUniforms.orbFlow.value = phase.current * 1.35;
+    coreUniforms.orbFlow.value = phase.current;
     if (halo.current) halo.current.quaternion.copy(camera.quaternion);
   });
 

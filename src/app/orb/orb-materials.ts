@@ -5,57 +5,14 @@ import {
   DoubleSide,
   FrontSide,
   ShaderMaterial,
-  type WebGLProgramParametersWithUniforms,
 } from "three";
 
+import {
+  createOrbDisplacementUniforms,
+  type OrbDisplacementUniforms,
+  type OrbUniform,
+} from "./orb-displacement";
 import { orbDisplacementChunk, orbNoiseChunk } from "./orb-shader-chunks";
-
-export type OrbUniform<Value> = { value: Value };
-
-export type OrbDisplacementUniforms = {
-  orbDistortion: OrbUniform<number>;
-  orbFlow: OrbUniform<number>;
-  orbScale: OrbUniform<number>;
-};
-
-export function createOrbDisplacementUniforms(
-  scale: number,
-): OrbDisplacementUniforms {
-  return {
-    orbDistortion: { value: 0 },
-    orbFlow: { value: 0 },
-    orbScale: { value: scale },
-  };
-}
-
-const orbVertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}\n`;
-
-/**
- * Adds fluid displacement to any lit three material by rewriting the two
- * vertex chunks that own position and normal, so lighting, refraction, and
- * the transmission buffer all follow the morphed surface.
- */
-export function applyOrbDisplacementToShader(
-  shader: WebGLProgramParametersWithUniforms,
-  uniforms: OrbDisplacementUniforms,
-): void {
-  shader.uniforms.orbDistortion = uniforms.orbDistortion;
-  shader.uniforms.orbFlow = uniforms.orbFlow;
-  shader.uniforms.orbScale = uniforms.orbScale;
-
-  shader.vertexShader = orbVertexPreamble + shader.vertexShader;
-  shader.vertexShader = shader.vertexShader.replace(
-    "#include <beginnormal_vertex>",
-    /* glsl */ `
-    vec3 orbSurfacePosition;
-    vec3 objectNormal = orbDisplacedNormal(position, orbDistortion, orbSurfacePosition);
-    `,
-  );
-  shader.vertexShader = shader.vertexShader.replace(
-    "#include <begin_vertex>",
-    "vec3 transformed = orbSurfacePosition;",
-  );
-}
 
 const orbLayerVertexShader = /* glsl */ `
 ${orbNoiseChunk}
