@@ -23,9 +23,10 @@ import {
   readOrbViewDistance,
 } from "./orb-params";
 import {
+  getOrbPresetWrites,
   readOrbStateId,
   readOrbStyleId,
-  resolveOrbPreset,
+  type OrbPresetSelection,
   type OrbStyleId,
 } from "./orb-styles";
 
@@ -74,46 +75,48 @@ function orbSceneInputsEqual(
  */
 /**
  * Style and state are stored values, so picking either writes the resolved
- * parameter set back into the visible sliders. Skipping the first observation
- * matters: without it a reload would overwrite the user's restored tweaks.
+ * parameters back into the visible controls.
+ *
+ * Two rules make this predictable. Picking a style brings its palette, because
+ * a palette is part of what a style is. Picking a state never touches colour,
+ * because colour is the user's: hand-picking red and then switching state must
+ * leave the orb red. Skipping the first observation matters too, or a reload
+ * would overwrite the tweaks that were just restored.
  */
 function OrbPresetBridge(): null {
   const dispatch = useToolcraftDispatch();
-  const selection = useToolcraftSelector(
-    (state: ToolcraftState) =>
-      `${readOrbStyleId(state.values[orbTargets.style])}:${readOrbStateId(
-        state.values[orbTargets.state],
-      )}`,
+  const styleId = useToolcraftSelector((state: ToolcraftState) =>
+    readOrbStyleId(state.values[orbTargets.style]),
   );
-  const appliedRef = React.useRef<string | null>(null);
+  const stateId = useToolcraftSelector((state: ToolcraftState) =>
+    readOrbStateId(state.values[orbTargets.state]),
+  );
+  const seenRef = React.useRef<OrbPresetSelection | null>(null);
 
   React.useEffect(() => {
-    if (appliedRef.current === null) {
-      appliedRef.current = selection;
+    const previous = seenRef.current;
+    const next: OrbPresetSelection = { state: stateId, style: styleId };
+    seenRef.current = next;
+
+    const writes = getOrbPresetWrites(previous, next);
+
+    if (writes.length === 0) {
       return;
     }
-    if (appliedRef.current === selection) {
-      return;
-    }
-    appliedRef.current = selection;
 
-    const [styleId, stateId] = selection.split(":");
-    const resolved = resolveOrbPreset(
-      readOrbStyleId(styleId),
-      readOrbStateId(stateId),
-    );
-    const historyGroup = `orb-preset:${selection}`;
+    const label = previous && previous.style !== styleId ? "Orb style" : "Orb state";
+    const historyGroup = `orb-preset:${styleId}:${stateId}`;
 
-    for (const [key, value] of Object.entries(resolved)) {
+    for (const { key, value } of writes) {
       dispatch({
         historyGroup,
-        label: "Orb preset",
-        target: orbTargets[key as keyof typeof resolved],
+        label,
+        target: orbTargets[key],
         type: "controls.setValue",
         value,
       });
     }
-  }, [dispatch, selection]);
+  }, [dispatch, stateId, styleId]);
 
   return null;
 }

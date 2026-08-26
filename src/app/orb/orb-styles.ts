@@ -1,5 +1,3 @@
-import { converter, formatHex, toGamut } from "culori";
-
 import type { OrbParams } from "./orb-params";
 
 export type OrbStyleId = "glass" | "bubble" | "frost" | "metal" | "plasma";
@@ -307,18 +305,6 @@ export type OrbStateForm = {
   swirl: number;
 };
 
-/**
- * Subtle-to-medium palette shift in OKLCH. States modulate the style's colours
- * rather than replacing them, so style identity survives while the four states
- * stay legible at a glance.
- */
-export type OrbStateTint = {
-  chromaAdd: number;
-  coreLightnessAdd: number;
-  hueRotate: number;
-  lightnessAdd: number;
-};
-
 export type OrbStateDelta = {
   chromaticAberrationAdd: number;
   distortionAdd: number;
@@ -329,7 +315,6 @@ export type OrbStateDelta = {
   iorAdd: number;
   label: string;
   roughnessScale: number;
-  tint: OrbStateTint;
 };
 
 export const orbStateOrder: readonly OrbStateId[] = [
@@ -350,7 +335,6 @@ export const orbStateDeltas: Record<OrbStateId, OrbStateDelta> = {
     iorAdd: 0,
     label: "Idle",
     roughnessScale: 1,
-    tint: { chromaAdd: 0, coreLightnessAdd: 0, hueRotate: 0, lightnessAdd: 0 },
   },
   think: {
     chromaticAberrationAdd: 0.08,
@@ -362,7 +346,6 @@ export const orbStateDeltas: Record<OrbStateId, OrbStateDelta> = {
     iorAdd: 0.14,
     label: "Think",
     roughnessScale: 0.85,
-    tint: { chromaAdd: 0.03, coreLightnessAdd: 0.05, hueRotate: -8, lightnessAdd: 0.02 },
   },
   search: {
     chromaticAberrationAdd: 0.25,
@@ -374,7 +357,6 @@ export const orbStateDeltas: Record<OrbStateId, OrbStateDelta> = {
     iorAdd: 0.42,
     label: "Search",
     roughnessScale: 0.4,
-    tint: { chromaAdd: 0.05, coreLightnessAdd: 0.03, hueRotate: 14, lightnessAdd: 0.03 },
   },
   speak: {
     chromaticAberrationAdd: 0.05,
@@ -386,7 +368,6 @@ export const orbStateDeltas: Record<OrbStateId, OrbStateDelta> = {
     iorAdd: -0.08,
     label: "Speak",
     roughnessScale: 1.1,
-    tint: { chromaAdd: 0.04, coreLightnessAdd: 0.09, hueRotate: 5, lightnessAdd: 0.05 },
   },
 };
 
@@ -400,34 +381,6 @@ export const orbParamRanges = {
   ior: [1, 3],
   roughness: [0, 1],
 } as const satisfies Record<string, readonly [number, number]>;
-
-const toOklch = converter("oklch");
-const intoDisplayGamut = toGamut("rgb", "oklch");
-
-/**
- * Shifts a colour in OKLCH so lightness and chroma move perceptually rather
- * than by RGB arithmetic, then gamut-maps instead of clipping so a pushed
- * chroma stays hue-true.
- */
-export function applyOrbTint(
-  hex: string,
-  shift: Readonly<{ chromaAdd: number; hueRotate: number; lightnessAdd: number }>,
-): string {
-  const base = toOklch(hex);
-
-  if (!base) {
-    return hex;
-  }
-
-  const shifted = {
-    ...base,
-    c: Math.max(0, (base.c ?? 0) + shift.chromaAdd),
-    h: ((base.h ?? 0) + shift.hueRotate + 360) % 360,
-    l: Math.min(1, Math.max(0, base.l + shift.lightnessAdd)),
-  };
-
-  return formatHex(intoDisplayGamut(shifted)).toUpperCase();
-}
 
 function clamp(value: number, [min, max]: readonly [number, number]): number {
   return Math.min(max, Math.max(min, value));
@@ -452,11 +405,7 @@ export function resolveOrbPreset(
         orbParamRanges.chromaticAberration,
       ),
     ),
-    coreColor: applyOrbTint(base.coreColor, {
-      chromaAdd: delta.tint.chromaAdd * 0.5,
-      hueRotate: delta.tint.hueRotate * 0.5,
-      lightnessAdd: delta.tint.coreLightnessAdd,
-    }),
+    coreColor: base.coreColor,
     distortion: round(
       clamp(base.distortion + delta.distortionAdd, orbParamRanges.distortion),
     ),
@@ -473,11 +422,48 @@ export function resolveOrbPreset(
       clamp(base.glowSpread * delta.glowSpreadScale, orbParamRanges.glowSpread),
     ),
     ior: round(clamp(base.ior + delta.iorAdd, orbParamRanges.ior)),
-    primaryColor: applyOrbTint(base.primaryColor, delta.tint),
+    primaryColor: base.primaryColor,
     roughness: round(
       clamp(base.roughness * delta.roughnessScale, orbParamRanges.roughness),
     ),
   };
+}
+
+/** Colour belongs to the style and to the user; a state never rewrites it. */
+export const orbColourParamKeys = ["coreColor", "primaryColor"] as const;
+
+export type OrbPresetSelection = { state: OrbStateId; style: OrbStyleId };
+export type OrbPresetWrite = { key: keyof OrbParams; value: number | string };
+
+/**
+ * Which controls a preset change is allowed to write.
+ *
+ * Picking a style brings its palette, because a palette is part of what a
+ * style is. Picking a state writes behaviour only and never colour, because
+ * colour is the user's: hand-picking red and switching state must leave the
+ * orb red.
+ */
+export function getOrbPresetWrites(
+  previous: OrbPresetSelection | null,
+  next: OrbPresetSelection,
+): OrbPresetWrite[] {
+  if (!previous) {
+    return [];
+  }
+
+  const styleChanged = previous.style !== next.style;
+  const stateChanged = previous.state !== next.state;
+
+  if (!styleChanged && !stateChanged) {
+    return [];
+  }
+
+  const resolved = resolveOrbPreset(next.style, next.state);
+  const colourKeys = new Set<string>(orbColourParamKeys);
+
+  return (Object.keys(resolved) as (keyof OrbParams)[])
+    .filter((key) => styleChanged || !colourKeys.has(key))
+    .map((key) => ({ key, value: resolved[key] }));
 }
 
 export function readOrbStyleId(value: unknown): OrbStyleId {

@@ -174,11 +174,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Risk: Frost's sample count went from six to sixteen, so it is now among the more expensive styles rather than one of the cheapest, and that cost has only been observed under software rendering.
 
+### Iteration 7 — Colour belongs to the style and the user, never to a state
+
+- Request: when I am changing the state of orb it is chnaging the color also for example ig my orb color is red in thinking and when I am change state to search it changes the color it should not change color right? what do you think?
+- Task type: Controls behaviour, colour model, acceptance.
+- User-visible result: Hand-picking a colour and then switching state leaves the colour alone; only behaviour changes. Picking a style still brings that style's palette, because a palette is part of what a style is.
+- Source/reference checked: The reported behaviour reproduced in a browser with a hand-picked red, and the two references revisited: ElevenLabs treats colours as developer-owned props while state changes appearance and animation, and Thinking Logos makes colour a brand choice while states change form. Neither lets a state override colour.
+- Reference inputs: User report of the shipped app.
+- Docs/contracts read: `component-rules.md`, `core/control-selection.md`.
+- Contract rules applied: `controls-product-coverage`, `acceptance-product-observable`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged.
+- Decision: The state tint added in the previous iteration was worse than reported. It tinted the style's palette rather than the current colour, so switching state did not shift a hand-picked red, it discarded it. The tint is removed entirely rather than reapplied at render time, because a swatch that disagrees with the screen is its own defect, and the per-state forms plus glow and bloom already carry the difference. The rule that decides which controls a preset may write is now a pure function, so it can be proven directly instead of through a flaky dropdown click.
+- Alternatives rejected: Tinting the current colour instead of the style base, which accumulates drift across repeated state changes. Applying the tint at render time only, which leaves the colour control disagreeing with the visible orb. Removing colour from styles too, which would cost the styles their identity.
+- State/output mapping: `getOrbPresetWrites` resolves a selection change into the exact set of control writes; a style change includes the palette, a state change excludes it, and a first observation writes nothing so a reload cannot overwrite restored values.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: the style dropdown could not be driven from the browser harness, so the style-brings-palette half is proven by unit test rather than by capture. Risk: states are now slightly less distinguishable in a still frame, since only form, glow and bloom separate them; motion and energy still do.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Colour ownership proof: seeding a hand-picked `#FF0000` primary and `#FF8800` core in the Think state and then switching to Search and to Speak left both colours untouched while flow moved 0.55, 1.76, 1.21. `getOrbPresetWrites` is covered directly: a state change writes behaviour but never a colour key, a style change writes the new style's palette, and a first observation writes nothing.
 - Frost proof: state separation on Frost measured 4.39 mean absolute channel difference before the repair and 4.88 after, against 5.27 for Glass as a control, so the states were always moving pixels and the fault was the style's own character. Two regression tests now pin the causes: no style may ship a pure white core, and a rough transmissive style must sample at least twelve times.
 - State proof: all four states captured on the Glass style show distinct silhouettes and palettes, with resolved values moving as designed: index of refraction 1.42, 1.56, 1.84, 1.34 and flow 0.55, 0.94, 1.76, 1.21. `src/app/orb/orb-styles.test.ts` proves each state has a distinct form, that only Search sweeps, and that every state colour stays within 0.14 perceptual distance of its own style so a tint can never override style identity. `src/app/orb/orb-code-snippet.test.ts` extracts the uniform names from the shipped shader chunk and requires the generated snippet to declare every one, which is what stops a new uniform shipping code that cannot compile.
 - Bloom and export proof: a Plasma frame was exported at 2048x2048 and compared against the screen capture; both carry the same bloom, confirming export runs through the composer. With bloom set to effectively zero the composer output differed from the pre-composer render by 3.82 mean absolute channel levels out of 255, which is animation phase rather than a colour-management shift, so the visible softening was bloom and not a double conversion. `src/app/orb/orb-code-snippet.test.ts` parses every generated snippet with esbuild, which is what caught a template-escaping slip that emitted invalid JSX.

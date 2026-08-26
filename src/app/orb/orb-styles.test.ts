@@ -1,8 +1,8 @@
-import { differenceEuclidean } from "culori";
 import { describe, expect, it } from "vitest";
 
 import {
-  applyOrbTint,
+  getOrbPresetWrites,
+  orbColourParamKeys,
   orbParamRanges,
   orbStateDeltas,
   orbStateOrder,
@@ -33,26 +33,22 @@ describe("orb style and state composition", () => {
     }
   });
 
-  it("keeps every state's colour close to its own style", () => {
-    // States modulate the palette rather than replacing it, so the shift must
-    // stay bounded or style identity dissolves the moment a state is picked.
-    const perceptualDistance = differenceEuclidean("oklab");
-    const subtleToMediumLimit = 0.14;
-
+  it("never lets a state change colour", () => {
+    // Colour is the style's and then the user's. Hand-picking red and
+    // switching state must leave the orb red, so a state may not resolve to a
+    // different colour than rest.
     for (const styleId of orbStyleOrder) {
       const base = orbStyles[styleId].base;
 
       for (const stateId of orbStateOrder) {
         const resolved = resolveOrbPreset(styleId, stateId);
 
-        expect(
-          perceptualDistance(resolved.primaryColor, base.primaryColor),
-          `${styleId}/${stateId} primary drifted too far from the style`,
-        ).toBeLessThan(subtleToMediumLimit);
-        expect(
-          perceptualDistance(resolved.coreColor, base.coreColor),
-          `${styleId}/${stateId} core drifted too far from the style`,
-        ).toBeLessThan(subtleToMediumLimit);
+        for (const key of orbColourParamKeys) {
+          expect(
+            resolved[key],
+            `${styleId}/${stateId} moved ${key} away from the style`,
+          ).toBe(base[key]);
+        }
       }
     }
   });
@@ -132,34 +128,9 @@ describe("orb style and state composition", () => {
     }
   });
 
-  it("shifts colour per state without leaving the style's family", () => {
-    for (const styleId of orbStyleOrder) {
-      const primaries = orbStateOrder.map(
-        (stateId) => resolveOrbPreset(styleId, stateId).primaryColor,
-      );
-
-      // Idle is the style's own colour, untouched.
-      expect(primaries[0]).toBe(orbStyles[styleId].base.primaryColor.toUpperCase());
-      // Every other state is distinguishable from rest.
-      expect(new Set(primaries).size).toBeGreaterThan(1);
-    }
-  });
-
-  it("keeps a tint hue-true instead of clipping it out of gamut", () => {
-    const pushed = applyOrbTint("#FF3D8B", {
-      chromaAdd: 0.4,
-      hueRotate: 0,
-      lightnessAdd: 0,
-    });
-
-    expect(pushed).toMatch(/^#[0-9A-F]{6}$/);
-    expect(pushed).not.toBe("#FFFFFF");
-    expect(pushed).not.toBe("#000000");
-  });
-
   it("gives every style a core colour a state can actually move", () => {
-    // A pure white core cannot take a lightness lift, so its states would all
-    // share an identical, invisible core. Frost shipped that way once.
+    // A pure white core has nowhere to go: it cannot be tinted by the user
+    // and it reads as a flat blown-out centre. Frost shipped that way once.
     for (const styleId of orbStyleOrder) {
       const core = orbStyles[styleId].base.coreColor.toUpperCase();
       expect(core, `${styleId} core has no headroom for a state tint`).not.toBe(
@@ -180,6 +151,48 @@ describe("orb style and state composition", () => {
         ).toBeGreaterThanOrEqual(12);
       }
     }
+  });
+
+  it("writes behaviour but not colour when only the state changes", () => {
+    const writes = getOrbPresetWrites(
+      { state: "think", style: "glass" },
+      { state: "search", style: "glass" },
+    );
+    const keys = writes.map((write) => write.key);
+
+    expect(keys.length).toBeGreaterThan(0);
+    for (const colourKey of orbColourParamKeys) {
+      expect(keys, `a state change must not write ${colourKey}`).not.toContain(
+        colourKey,
+      );
+    }
+    expect(keys).toContain("flowSpeed");
+    expect(keys).toContain("distortion");
+  });
+
+  it("brings the palette when the style changes", () => {
+    const writes = getOrbPresetWrites(
+      { state: "search", style: "glass" },
+      { state: "search", style: "plasma" },
+    );
+    const byKey = new Map(writes.map((write) => [write.key, write.value]));
+
+    for (const colourKey of orbColourParamKeys) {
+      expect(byKey.get(colourKey)).toBe(orbStyles.plasma.base[colourKey]);
+    }
+  });
+
+  it("writes nothing on first observation or when nothing changed", () => {
+    // Without this a reload would overwrite the tweaks it just restored.
+    expect(getOrbPresetWrites(null, { state: "speak", style: "metal" })).toEqual(
+      [],
+    );
+    expect(
+      getOrbPresetWrites(
+        { state: "speak", style: "metal" },
+        { state: "speak", style: "metal" },
+      ),
+    ).toEqual([]);
   });
 
   it("labels every state within the segmented control budget", () => {
