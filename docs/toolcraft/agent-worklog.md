@@ -156,11 +156,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Risk: the sweep ridge and the beat are motion, and a still frame cannot show them, so only the silhouette and palette differences are proven by capture. Risk: the transient is time based and not part of state, so a frame exported mid-transition is not reproducible from the parameters alone; steady state export is unaffected.
 
+### Iteration 6 — Frost repair
+
+- Request: frost does not anything check it
+- Task type: Renderer, style tuning, acceptance.
+- User-visible result: Frost reads as translucent ice instead of a flat milky blob. The speckle is gone, light now survives the crossing so the orb has an inside, a crisp clearcoat gives it ice-like glints, and its core can finally respond to a state.
+- Source/reference checked: Frost captured in all four states before and after, with pairwise pixel differences measured against Glass as a control.
+- Reference inputs: None. User report of the shipped app.
+- Docs/contracts read: `renderer-technique.md`, `component-rules.md`.
+- Contract rules applied: `renderer-technique-inventory`, `acceptance-product-observable`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged.
+- Decision: Three faults, and the first was a wrong assumption recorded in Phase 1. Sample count was set to six on the reasoning that a rough surface blurs its samples anyway; the opposite is true, because rough transmission scatters samples wider and therefore needs more of them, so six read as speckle. Attenuation distance was shorter than the shell thickness, which absorbed nearly all transmitted light and left an opaque blob with no interior. The core was pure white, which has no headroom for a lightness lift, so all four states shared an identical and invisible core.
+- Alternatives rejected: Raising distortion to add interest, which would have made Frost lumpier rather than icier. Dropping Frost, since the fault was tuning rather than concept.
+- State/output mapping: Unchanged. Frost's material, palette, and sample count feed the same style pipeline as the other four.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: Frost's sample count went from six to sixteen, so it is now among the more expensive styles rather than one of the cheapest, and that cost has only been observed under software rendering.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Frost proof: state separation on Frost measured 4.39 mean absolute channel difference before the repair and 4.88 after, against 5.27 for Glass as a control, so the states were always moving pixels and the fault was the style's own character. Two regression tests now pin the causes: no style may ship a pure white core, and a rough transmissive style must sample at least twelve times.
 - State proof: all four states captured on the Glass style show distinct silhouettes and palettes, with resolved values moving as designed: index of refraction 1.42, 1.56, 1.84, 1.34 and flow 0.55, 0.94, 1.76, 1.21. `src/app/orb/orb-styles.test.ts` proves each state has a distinct form, that only Search sweeps, and that every state colour stays within 0.14 perceptual distance of its own style so a tint can never override style identity. `src/app/orb/orb-code-snippet.test.ts` extracts the uniform names from the shipped shader chunk and requires the generated snippet to declare every one, which is what stops a new uniform shipping code that cannot compile.
 - Bloom and export proof: a Plasma frame was exported at 2048x2048 and compared against the screen capture; both carry the same bloom, confirming export runs through the composer. With bloom set to effectively zero the composer output differed from the pre-composer render by 3.82 mean absolute channel levels out of 255, which is animation phase rather than a colour-management shift, so the visible softening was bloom and not a double conversion. `src/app/orb/orb-code-snippet.test.ts` parses every generated snippet with esbuild, which is what caught a template-escaping slip that emitted invalid JSX.
 - Style proof: `src/app/orb/orb-styles.test.ts` proves every style/state combination lands inside its slider domain, that colour is style-owned across all four states, that each state is more agitated than rest in every style, and that only the opaque style skips the transmission passes. `src/app/orb/orb-code-snippet.test.ts` proves Copy Code emits the selected style's material, studio, and geometry rather than the default one.

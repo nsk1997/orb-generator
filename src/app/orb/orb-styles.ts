@@ -153,37 +153,37 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
   frost: {
     base: {
       chromaticAberration: 0.1,
-      coreColor: "#FFFFFF",
+      coreColor: "#CFF3FF",
       distortion: 0.35,
       flowSpeed: 0.3,
       glowIntensity: 0.55,
       glowSpread: 3.6,
       ior: 1.31,
       primaryColor: "#BFE6FF",
-      roughness: 0.55,
+      roughness: 0.38,
     },
     bloom: { intensity: 0.18, radius: 0.55, threshold: 0.9 },
-    coreIntensityScale: 0.8,
+    coreIntensityScale: 1.15,
     coreScale: 0.5,
     haloSize: 4,
     id: "frost",
     label: "Frost",
     material: {
-      // Short attenuation over real thickness is what makes light scatter out
-      // milky instead of transmitting a sharp image.
-      attenuationDistance: 0.9,
+      // Milky, but not opaque: enough light has to survive the crossing for
+      // the orb to have an inside at all.
+      attenuationDistance: 2.2,
       backsideThickness: 0.6,
-      clearcoat: 0.4,
-      clearcoatRoughness: 0.3,
-      envMapIntensity: 1.4,
-      iridescence: 0,
+      clearcoat: 1,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.9,
+      iridescence: 0.12,
       iridescenceIOR: 1.3,
       iridescenceThicknessRange: [100, 400],
       metalness: 0,
-      // A rough surface blurs the samples anyway, so fewer of them cost
-      // nothing visible.
-      samples: 6,
-      thickness: 1.4,
+      // Rough transmission scatters samples wider, so it needs MORE of
+      // them, not fewer. Six read as speckle rather than as frost.
+      samples: 16,
+      thickness: 1.0,
       transmission: 1,
     },
     studio: {

@@ -157,6 +157,31 @@ describe("orb style and state composition", () => {
     expect(pushed).not.toBe("#000000");
   });
 
+  it("gives every style a core colour a state can actually move", () => {
+    // A pure white core cannot take a lightness lift, so its states would all
+    // share an identical, invisible core. Frost shipped that way once.
+    for (const styleId of orbStyleOrder) {
+      const core = orbStyles[styleId].base.coreColor.toUpperCase();
+      expect(core, `${styleId} core has no headroom for a state tint`).not.toBe(
+        "#FFFFFF",
+      );
+    }
+  });
+
+  it("samples rough transmission densely enough to avoid speckle", () => {
+    // Rough transmission scatters samples wider, so a rough style needs more
+    // of them, not fewer. The inverse assumption shipped visible grain.
+    for (const styleId of orbStyleOrder) {
+      const style = orbStyles[styleId];
+      if (style.material.transmission > 0 && style.base.roughness > 0.25) {
+        expect(
+          style.material.samples,
+          `${styleId} is rough and transmissive but samples sparsely`,
+        ).toBeGreaterThanOrEqual(12);
+      }
+    }
+  });
+
   it("labels every state within the segmented control budget", () => {
     const labels = orbStateOrder.map((id) => orbStateDeltas[id].label);
 
