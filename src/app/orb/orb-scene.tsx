@@ -24,7 +24,6 @@ import {
 import {
   attachOrbDisplacement,
   createOrbDisplacementUniforms,
-  type OrbDisplacementUniforms,
 } from "./orb-displacement";
 import {
   getOrbComposer,
@@ -105,7 +104,14 @@ export function OrbScene({
   const style = orbStyles[styleId];
   const { material } = style;
   const bodyMaterialRef = React.useRef<OrbTransmissionMaterial | null>(null);
-  const bodyUniforms = React.useRef<OrbDisplacementUniforms | null>(null);
+  // One stable uniform set for the lifetime of the scene. The material itself
+  // is remounted whenever the style changes, because Drei carries `samples` in
+  // its constructor args, so the uniforms must outlive any single material.
+  const bodyUniforms = React.useMemo(() => {
+    const uniforms = createOrbDisplacementUniforms(1);
+    uniforms.orbDistortion.value = orbDefaults.distortion;
+    return uniforms;
+  }, []);
 
   const glowMaterial = React.useMemo(() => createOrbGlowMaterial(), []);
   const coreMaterial = React.useMemo(
@@ -164,17 +170,15 @@ export function OrbScene({
     (material: OrbTransmissionMaterial | null) => {
       bodyMaterialRef.current = material;
 
-      if (!material || bodyUniforms.current) {
+      if (!material) {
         return;
       }
 
-      const uniforms = createOrbDisplacementUniforms(1);
-      uniforms.orbDistortion.value = orbDefaults.distortion;
-
-      attachOrbDisplacement(material, uniforms, "orb-displaced-transmission");
-      bodyUniforms.current = uniforms;
+      // Every material gets patched, not just the first. Guarding on "have we
+      // done this once" left every style switch rendering a static sphere.
+      attachOrbDisplacement(material, bodyUniforms, "orb-displaced-transmission");
     },
-    [],
+    [bodyUniforms],
   );
 
   useFrame(({ camera }, delta) => {
@@ -285,14 +289,12 @@ export function OrbScene({
     }
     const shellDistortion = state.distortion + 0.1 * state.transientFollow;
 
-    if (bodyUniforms.current) {
-      bodyUniforms.current.orbCalm.value = state.calm;
-      bodyUniforms.current.orbDistortion.value = shellDistortion;
-      bodyUniforms.current.orbFlow.value = state.flowPhase;
-      bodyUniforms.current.orbPulse.value = state.pulse;
-      bodyUniforms.current.orbSweep.value = state.sweep;
-      bodyUniforms.current.orbSwirl.value = state.swirl;
-    }
+    bodyUniforms.orbCalm.value = state.calm;
+    bodyUniforms.orbDistortion.value = shellDistortion;
+    bodyUniforms.orbFlow.value = state.flowPhase;
+    bodyUniforms.orbPulse.value = state.pulse;
+    bodyUniforms.orbSweep.value = state.sweep;
+    bodyUniforms.orbSwirl.value = state.swirl;
 
     glowMaterial.uniforms.orbGlowColor.value.copy(shownPrimary);
     glowMaterial.uniforms.orbGlowIntensity.value =

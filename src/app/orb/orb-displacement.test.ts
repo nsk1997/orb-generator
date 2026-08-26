@@ -85,6 +85,34 @@ describe("orb displacement injection", () => {
     expect(shader.vertexShader).toContain("vec3 transformed = orbSurfacePosition;");
   });
 
+  it("patches every material it is given, sharing one uniform set", () => {
+    // The material is remounted on each style change, so attaching only the
+    // first one leaves every later style rendering a motionless sphere.
+    const uniforms = createOrbDisplacementUniforms(1);
+    const first = new MeshPhysicalMaterial();
+    const second = new MeshStandardMaterial();
+
+    attachOrbDisplacement(first, uniforms, "orb-test");
+    attachOrbDisplacement(second, uniforms, "orb-test");
+
+    uniforms.orbFlow.value = 7.25;
+
+    for (const [material, name] of [
+      [first, "physical"],
+      [second, "standard"],
+    ] as const) {
+      const shader = shaderFor(name);
+      material.onBeforeCompile(shader, null as never);
+
+      expect(
+        shader.vertexShader,
+        `${name} material was not patched`,
+      ).toContain("vec3 transformed = orbSurfacePosition;");
+      expect(shader.uniforms.orbFlow).toBe(uniforms.orbFlow);
+      expect((shader.uniforms.orbFlow as { value: number }).value).toBe(7.25);
+    }
+  });
+
   it("does not patch the same material twice", () => {
     const material = new MeshStandardMaterial();
     const uniforms = createOrbDisplacementUniforms(1);

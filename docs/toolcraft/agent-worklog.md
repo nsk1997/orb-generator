@@ -192,11 +192,30 @@ Classifier output establishes complaint authority only and never path localizati
 - Verification: `npm run verify:delivery`.
 - Risks: Risk: the style dropdown could not be driven from the browser harness, so the style-brings-palette half is proven by unit test rather than by capture. Risk: states are now slightly less distinguishable in a still frame, since only form, glow and bloom separate them; motion and energy still do.
 
+### Iteration 8 — Every style switch was freezing the orb
+
+- Request: there is no movement in metal orb please check it
+- Task type: Renderer lifecycle, acceptance.
+- User-visible result: Switching style at runtime keeps the orb moving. Before this, picking any style other than the one loaded produced a motionless sphere.
+- Source/reference checked: Frame-to-frame pixel difference measured on a fresh load and after a runtime style switch, with the fix stashed and restored to get both numbers.
+- Reference inputs: User report of the shipped app.
+- Docs/contracts read: `core/runtime-boundary.md`, `core/performance.md`.
+- Contract rules applied: `renderer-technique-inventory`, `acceptance-product-observable`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged.
+- Decision: The material carries `samples` in Drei's constructor args, so the style key remounts it. The attach callback guarded on whether a uniform set already existed and returned early for every material after the first, so a remounted material never received the displacement patch and the render loop went on writing uniforms belonging to a destroyed one. The uniform set is now created once for the lifetime of the scene and every material that arrives is patched; `attachOrbDisplacement` was already idempotent per material, so re-attaching is safe.
+- Alternatives rejected: Dropping the remount key, which would leave `samples` stale across styles. Recreating the uniform set per material, which would strand the render loop on whichever object it captured.
+- State/output mapping: Unchanged. One uniform set now spans every material the scene mounts.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Risks: Risk: this was invisible to the capture harness because every screenshot seeded the style and loaded fresh, so no test ever switched style at runtime. Runtime transitions in general remain thinly covered.
+
 ## Evidence
 
 - Source reviewed: `src/app/app-schema.ts`, `src/app/app-composition.tsx`, `src/app/app-acceptance-data.ts`, `src/app/app-performance.ts`, `src/app/orb/orb-scene.tsx`, `src/app/orb/orb-materials.ts`, `src/app/orb/orb-shader-chunks.ts`, `src/app/orb/orb-params.ts`, `src/app/orb/orb-canvas.tsx`, `src/app/orb/orb-code-snippet.ts`, `src/app/orb/orb-export-registry.ts`.
 - Contract applied: `runtime-shell-required`, `canvas-surface-preserved`, `controls-product-coverage`, `output-export-required`, `interaction-surface-ownership`, `renderer-view-interaction`, `acceptance-product-observable`, `persistence-policy-explicit`.
 - Evidence: contracts read were `docs/toolcraft/workflow.md`, `docs/toolcraft/schema-reference.md`, `docs/toolcraft/component-rules.md`, `docs/toolcraft/core/runtime-boundary.md`, `docs/toolcraft/core/setup-export.md`, `docs/toolcraft/core/control-selection.md`, `docs/toolcraft/core/performance.md`.
+- Style switch proof: frame-to-frame mean absolute channel difference over 2.5 seconds. Before the fix, Glass at initial mount measured 2.88 and Metal after a runtime switch measured 0.01, which is a frozen frame. After the fix the same measurements are 2.92 and 2.69. A unit test now attaches one uniform set to two different materials and requires both to compile with the displacement and to share uniform identity.
 - Colour ownership proof: seeding a hand-picked `#FF0000` primary and `#FF8800` core in the Think state and then switching to Search and to Speak left both colours untouched while flow moved 0.55, 1.76, 1.21. `getOrbPresetWrites` is covered directly: a state change writes behaviour but never a colour key, a style change writes the new style's palette, and a first observation writes nothing.
 - Frost proof: state separation on Frost measured 4.39 mean absolute channel difference before the repair and 4.88 after, against 5.27 for Glass as a control, so the states were always moving pixels and the fault was the style's own character. Two regression tests now pin the causes: no style may ship a pure white core, and a rough transmissive style must sample at least twelve times.
 - State proof: all four states captured on the Glass style show distinct silhouettes and palettes, with resolved values moving as designed: index of refraction 1.42, 1.56, 1.84, 1.34 and flow 0.55, 0.94, 1.76, 1.21. `src/app/orb/orb-styles.test.ts` proves each state has a distinct form, that only Search sweeps, and that every state colour stays within 0.14 perceptual distance of its own style so a tint can never override style identity. `src/app/orb/orb-code-snippet.test.ts` extracts the uniform names from the shipped shader chunk and requires the generated snippet to declare every one, which is what stops a new uniform shipping code that cannot compile.
