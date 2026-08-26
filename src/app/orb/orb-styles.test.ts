@@ -1,6 +1,8 @@
+import { differenceEuclidean } from "culori";
 import { describe, expect, it } from "vitest";
 
 import {
+  applyOrbTint,
   orbParamRanges,
   orbStateDeltas,
   orbStateOrder,
@@ -31,14 +33,27 @@ describe("orb style and state composition", () => {
     }
   });
 
-  it("lets the style own colour so states cannot flatten style identity", () => {
-    for (const styleId of orbStyleOrder) {
-      const colours = orbStateOrder.map((stateId) => {
-        const { coreColor, primaryColor } = resolveOrbPreset(styleId, stateId);
-        return `${primaryColor}/${coreColor}`;
-      });
+  it("keeps every state's colour close to its own style", () => {
+    // States modulate the palette rather than replacing it, so the shift must
+    // stay bounded or style identity dissolves the moment a state is picked.
+    const perceptualDistance = differenceEuclidean("oklab");
+    const subtleToMediumLimit = 0.14;
 
-      expect(new Set(colours).size).toBe(1);
+    for (const styleId of orbStyleOrder) {
+      const base = orbStyles[styleId].base;
+
+      for (const stateId of orbStateOrder) {
+        const resolved = resolveOrbPreset(styleId, stateId);
+
+        expect(
+          perceptualDistance(resolved.primaryColor, base.primaryColor),
+          `${styleId}/${stateId} primary drifted too far from the style`,
+        ).toBeLessThan(subtleToMediumLimit);
+        expect(
+          perceptualDistance(resolved.coreColor, base.coreColor),
+          `${styleId}/${stateId} core drifted too far from the style`,
+        ).toBeLessThan(subtleToMediumLimit);
+      }
     }
   });
 
@@ -100,6 +115,46 @@ describe("orb style and state composition", () => {
       expect(orbStyles[id].bloom.threshold).toBeLessThan(1);
       expect(orbStyles[id].bloom.intensity).toBeGreaterThan(0);
     }
+  });
+
+  it("gives each state a distinct shape language, not just more of the same", () => {
+    const forms = orbStateOrder.map((id) => JSON.stringify(orbStateDeltas[id].form));
+    expect(new Set(forms).size).toBe(orbStateOrder.length);
+
+    // The four behaviours that make the states readable at a glance.
+    expect(orbStateDeltas.search.form.sweep).toBeGreaterThan(0.5);
+    expect(orbStateDeltas.speak.form.pulse).toBeGreaterThan(0.5);
+    expect(orbStateDeltas.think.form.coreAgitation).toBeGreaterThan(1.5);
+    expect(orbStateDeltas.idle.form.calm).toBe(1);
+    // Only Search sweeps, or "scanning" stops meaning anything.
+    for (const id of orbStateOrder.filter((s) => s !== "search")) {
+      expect(orbStateDeltas[id].form.sweep).toBe(0);
+    }
+  });
+
+  it("shifts colour per state without leaving the style's family", () => {
+    for (const styleId of orbStyleOrder) {
+      const primaries = orbStateOrder.map(
+        (stateId) => resolveOrbPreset(styleId, stateId).primaryColor,
+      );
+
+      // Idle is the style's own colour, untouched.
+      expect(primaries[0]).toBe(orbStyles[styleId].base.primaryColor.toUpperCase());
+      // Every other state is distinguishable from rest.
+      expect(new Set(primaries).size).toBeGreaterThan(1);
+    }
+  });
+
+  it("keeps a tint hue-true instead of clipping it out of gamut", () => {
+    const pushed = applyOrbTint("#FF3D8B", {
+      chromaAdd: 0.4,
+      hueRotate: 0,
+      lightnessAdd: 0,
+    });
+
+    expect(pushed).toMatch(/^#[0-9A-F]{6}$/);
+    expect(pushed).not.toBe("#FFFFFF");
+    expect(pushed).not.toBe("#000000");
   });
 
   it("labels every state within the segmented control budget", () => {

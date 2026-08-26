@@ -33,7 +33,13 @@ import {
 } from "./orb-export-registry";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import { orbDefaults, orbViewDistanceDefault, type OrbParams } from "./orb-params";
-import { orbStyles, type OrbStudioConfig, type OrbStyleId } from "./orb-styles";
+import {
+  orbStateDeltas,
+  orbStyles,
+  type OrbStateId,
+  type OrbStudioConfig,
+  type OrbStyleId,
+} from "./orb-styles";
 
 export type OrbViewPose = {
   position: readonly [number, number, number];
@@ -42,6 +48,7 @@ export type OrbViewPose = {
 
 export type OrbSceneInputs = {
   backgroundColor: string;
+  stateId: OrbStateId;
   includeBackground: boolean;
   params: OrbParams;
   pose: OrbViewPose;
@@ -50,6 +57,7 @@ export type OrbSceneInputs = {
 
 export const orbSceneInputDefaults: OrbSceneInputs = {
   backgroundColor: "#0A0A12",
+  stateId: "idle",
   includeBackground: true,
   params: orbDefaults,
   pose: { position: [0, 0, 5], up: [0, 1, 0] },
@@ -68,10 +76,18 @@ type OrbTransmissionMaterial = MeshPhysicalMaterial & {
 /** How fast displayed values chase the panel values, per parameter family. */
 const responseRates = {
   color: 5,
+  /** Forms morph a touch slower than values, so the change reads as a move. */
+  form: 2.6,
   motion: 3.2,
   surface: 4.5,
   view: 6,
 } as const;
+
+/**
+ * A state change fires one short envelope. Light leads and geometry follows,
+ * which is what makes the switch feel like an event without a flash.
+ */
+const transientRates = { follow: 9, lead: 4.2 } as const;
 
 function useSmoothedColor(hex: string): Color {
   return React.useMemo(() => new Color(hex), [hex]);
@@ -118,7 +134,16 @@ export function OrbScene({
     ior: orbDefaults.ior,
     roughness: orbDefaults.roughness,
     viewDistance: orbViewDistanceDefault,
+    // Form weights, morphed rather than switched.
+    calm: 1,
+    coreAgitation: 1,
+    pulse: 0,
+    sweep: 0,
+    swirl: 0.15,
+    transientFollow: 0,
+    transientLead: 0,
   });
+  const lastStateRef = React.useRef<OrbStateId>("idle");
   const whitePoint = useSmoothedColor("#FFFFFF");
   const shownPrimary = useSmoothedColor(orbDefaults.primaryColor);
   const shownCore = useSmoothedColor(orbDefaults.coreColor);
@@ -206,6 +231,36 @@ export function OrbScene({
       step,
     );
 
+    const form = orbStateDeltas[inputs.stateId].form;
+
+    if (lastStateRef.current !== inputs.stateId) {
+      lastStateRef.current = inputs.stateId;
+      state.transientLead = 1;
+    }
+    state.transientLead = MathUtils.damp(
+      state.transientLead,
+      0,
+      transientRates.lead,
+      step,
+    );
+    state.transientFollow = MathUtils.damp(
+      state.transientFollow,
+      state.transientLead,
+      transientRates.follow,
+      step,
+    );
+
+    state.calm = MathUtils.damp(state.calm, form.calm, responseRates.form, step);
+    state.pulse = MathUtils.damp(state.pulse, form.pulse, responseRates.form, step);
+    state.sweep = MathUtils.damp(state.sweep, form.sweep, responseRates.form, step);
+    state.swirl = MathUtils.damp(state.swirl, form.swirl, responseRates.form, step);
+    state.coreAgitation = MathUtils.damp(
+      state.coreAgitation,
+      form.coreAgitation,
+      responseRates.form,
+      step,
+    );
+
     // Integrating speed keeps the surface continuous when speed changes;
     // wrapping to the loop span keeps float precision exact and gives every
     // layer one shared cycle to return to.
@@ -228,16 +283,28 @@ export function OrbScene({
       body.attenuationColor.copy(shownPrimary);
       body.time = state.flowPhase;
     }
+    const shellDistortion = state.distortion + 0.1 * state.transientFollow;
+
     if (bodyUniforms.current) {
-      bodyUniforms.current.orbDistortion.value = state.distortion;
+      bodyUniforms.current.orbCalm.value = state.calm;
+      bodyUniforms.current.orbDistortion.value = shellDistortion;
       bodyUniforms.current.orbFlow.value = state.flowPhase;
+      bodyUniforms.current.orbPulse.value = state.pulse;
+      bodyUniforms.current.orbSweep.value = state.sweep;
+      bodyUniforms.current.orbSwirl.value = state.swirl;
     }
 
     glowMaterial.uniforms.orbGlowColor.value.copy(shownPrimary);
-    glowMaterial.uniforms.orbGlowIntensity.value = state.glowIntensity;
+    glowMaterial.uniforms.orbGlowIntensity.value =
+      state.glowIntensity + 0.25 * state.transientLead;
     glowMaterial.uniforms.orbGlowSpread.value = state.glowSpread;
 
-    coreMaterial.uniforms.orbDistortion.value = state.distortion * 0.55;
+    coreMaterial.uniforms.orbCalm.value = state.calm;
+    coreMaterial.uniforms.orbPulse.value = state.pulse;
+    coreMaterial.uniforms.orbSwirl.value = state.swirl;
+    // The core can churn inside a still shell, which is what Think looks like.
+    coreMaterial.uniforms.orbDistortion.value =
+      shellDistortion * 0.55 * state.coreAgitation;
     // Same phase as the shell: a seamless capture needs one period for the
     // whole orb, and the core already reads differently from its smaller
     // scale and lower distortion.
@@ -250,7 +317,8 @@ export function OrbScene({
     // rather than adding a tenth control for the same idea.
     if (bloomRef.current) {
       bloomRef.current.intensity =
-        style.bloom.intensity * (0.55 + state.glowIntensity * 0.45);
+        style.bloom.intensity * (0.55 + state.glowIntensity * 0.45) +
+        0.3 * state.transientLead;
     }
 
     const pose = inputs.pose;

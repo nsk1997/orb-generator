@@ -12,7 +12,12 @@ import {
   readOrbSceneBackground,
   readOrbViewDistance,
 } from "./orb/orb-params";
-import { orbStyles, readOrbStyleId } from "./orb/orb-styles";
+import {
+  orbStateDeltas,
+  orbStyles,
+  readOrbStateId,
+  readOrbStyleId,
+} from "./orb/orb-styles";
 
 const orbExportRenderer: ToolcraftProductExportRenderer = {
   baseFileName: "orb",
@@ -47,6 +52,7 @@ export const appComposition: ToolcraftAppComposition = {
 
     const snippet = createOrbCodeSnippet(readOrbParams(state.values), {
       backgroundColor: readOrbSceneBackground(state.values),
+      form: orbStateDeltas[readOrbStateId(state.values[orbTargets.state])].form,
       style: orbStyles[readOrbStyleId(state.values[orbTargets.style])],
       viewDistance: readOrbViewDistance(state.values),
     });

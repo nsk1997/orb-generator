@@ -2,11 +2,18 @@ import { transform } from "esbuild";
 import { describe, expect, it } from "vitest";
 
 import { createOrbCodeSnippet } from "./orb-code-snippet";
-import { orbStyleOrder, orbStyles, resolveOrbPreset } from "./orb-styles";
+import { orbDisplacementChunk } from "./orb-shader-chunks";
+import {
+  orbStateDeltas,
+  orbStyleOrder,
+  orbStyles,
+  resolveOrbPreset,
+} from "./orb-styles";
 
 function snippetFor(styleId: (typeof orbStyleOrder)[number]): string {
   return createOrbCodeSnippet(resolveOrbPreset(styleId, "idle"), {
     backgroundColor: "#0A0A12",
+    form: orbStateDeltas.idle.form,
     style: orbStyles[styleId],
     viewDistance: 8,
   });
@@ -64,6 +71,25 @@ describe("copy code snippet", () => {
       expect(snippet).toContain(
         `bloomThreshold: ${orbStyles[styleId].bloom.threshold}`,
       );
+    }
+  });
+
+  it("declares every uniform the embedded shader requires", () => {
+    // The snippet embeds the shader chunk verbatim, so adding a uniform to the
+    // app without adding it here ships code that cannot compile.
+    const required = [
+      ...orbDisplacementChunk.matchAll(/uniform\s+float\s+(\w+)\s*;/g),
+    ].map((match) => match[1]);
+
+    expect(required.length).toBeGreaterThan(3);
+
+    for (const styleId of orbStyleOrder) {
+      const snippet = snippetFor(styleId);
+      for (const name of required) {
+        expect(snippet, `snippet is missing uniform ${name}`).toContain(
+          `${name}: { value:`,
+        );
+      }
     }
   });
 

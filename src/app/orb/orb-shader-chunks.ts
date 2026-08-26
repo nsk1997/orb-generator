@@ -82,6 +82,14 @@ uniform float orbFlow;
 uniform float orbDistortion;
 uniform float orbScale;
 
+// Form weights. A state departs into its own shape language rather than
+// doing the same thing harder; every term below is driven off the cycle
+// angle, so each form loops by construction.
+uniform float orbCalm;
+uniform float orbPulse;
+uniform float orbSweep;
+uniform float orbSwirl;
+
 const float ORB_LOOP_SPAN = ${orbLoopSpan.toFixed(1)};
 const float ORB_TAU = 6.2831853;
 
@@ -101,22 +109,50 @@ float orbLoopFbm(vec3 p, vec3 drift, float t) {
        + 0.28 * orbLoopNoise(p * 1.97, drift * 1.97, t);
 }
 
+vec3 orbRotateY(vec3 p, float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
+}
+
+/** Three beats per cycle, so it returns exactly with the loop. */
+float orbBeat(float angle) {
+  float strike = pow(max(sin(angle * 3.0), 0.0), 4.0);
+  float tail = 0.5 * pow(max(sin(angle * 3.0 + 2.1), 0.0), 6.0);
+  return clamp(strike + tail, 0.0, 1.5) / 1.5;
+}
+
 vec3 orbDisplace(vec3 p, float amount) {
   vec3 unit = normalize(p);
   float t = fract(orbFlow / ORB_LOOP_SPAN);
   float angle = t * ORB_TAU;
 
-  // Drift per cycle equals the old per-unit-phase travel times the span, so
+  // Swirl turns the sampling domain instead of drifting it. A whole turn per
+  // cycle lands back on the start.
+  vec3 sampled = mix(unit, orbRotateY(unit, angle), orbSwirl);
+
+  // Drift per cycle equals the old per-phase-unit travel times the span, so
   // the motion keeps its original rate while gaining a loop point.
   const vec3 swellDrift = vec3(3.3, -2.46, 1.62);
   const vec3 rippleDrift = vec3(0.0, 4.32, 2.64);
 
-  float swell = orbLoopNoise(unit * 0.85, swellDrift, t);
-  float ripple = orbLoopFbm(unit * 1.35, rippleDrift, t);
-  // Harmonics of the cycle, so the global pulse loops exactly and for free.
+  float swell = orbLoopNoise(sampled * 0.85, swellDrift, t);
+  float ripple = orbLoopFbm(sampled * 1.35, rippleDrift, t) * orbCalm;
   float breathe = (sin(angle) * 0.7 + sin(angle * 2.0 + 1.3) * 0.3) * 0.18;
 
-  float offset = amount * 0.72 * (0.56 * swell + 0.34 * ripple + breathe);
+  // A ridge circling the orb, anchored to the world rather than to the swirl,
+  // so it reads as something scanning across the surface.
+  float azimuth = atan(unit.z, unit.x);
+  float aligned = cos(azimuth - angle * 2.0);
+  float band = pow(max(aligned, 0.0), 14.0) * (0.55 + 0.45 * (1.0 - abs(unit.y)));
+
+  // Bursts and settles rather than buzzing evenly.
+  float pulseGain = mix(1.0, 0.45 + 1.35 * orbBeat(angle), orbPulse);
+
+  float offset =
+    amount * 0.72 * pulseGain * (0.56 * swell + 0.34 * ripple + breathe) +
+    amount * 0.5 * band * orbSweep;
+
   return unit * (orbScale + offset);
 }
 

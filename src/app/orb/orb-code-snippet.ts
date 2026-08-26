@@ -1,6 +1,6 @@
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
-import type { OrbStyle } from "./orb-styles";
+import type { OrbStateForm, OrbStyle } from "./orb-styles";
 
 /** Matches the live renderer: glass stays light, attenuation carries colour. */
 function lightenTowardWhite(hex: string, amount: number): string {
@@ -26,11 +26,12 @@ export function createOrbCodeSnippet(
   params: OrbParams,
   options: Readonly<{
     backgroundColor: string;
+    form: OrbStateForm;
     style: OrbStyle;
     viewDistance: number;
   }>,
 ): string {
-  const { style } = options;
+  const { form, style } = options;
   const { material, studio } = style;
   const vertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}`.trim();
   const glassTint = lightenTowardWhite(params.primaryColor, style.tintLift);
@@ -55,6 +56,10 @@ const ORB = {
   ior: ${round(params.ior)},
   glassTint: "${glassTint}",
   style: "${style.id}",
+  calm: ${form.calm},
+  pulse: ${form.pulse},
+  sweep: ${form.sweep},
+  swirl: ${form.swirl},
   bloomIntensity: ${round(style.bloom.intensity * (0.55 + params.glowIntensity * 0.45))},
   bloomRadius: ${style.bloom.radius},
   bloomThreshold: ${style.bloom.threshold},
@@ -168,9 +173,14 @@ void main() {
 function useDisplacementUniforms(scale, distortion) {
   return useMemo(
     () => ({
+      // Form weights come from the state that was active when this was copied.
+      orbCalm: { value: ORB.calm },
       orbDistortion: { value: distortion },
       orbFlow: { value: 0 },
+      orbPulse: { value: ORB.pulse },
       orbScale: { value: scale },
+      orbSweep: { value: ORB.sweep },
+      orbSwirl: { value: ORB.swirl },
     }),
     [distortion, scale],
   );
@@ -178,7 +188,7 @@ function useDisplacementUniforms(scale, distortion) {
 
 function Orb() {
   const bodyUniforms = useDisplacementUniforms(1, ORB.distortion);
-  const coreUniforms = useDisplacementUniforms(${style.coreScale}, ORB.distortion * 0.55);
+  const coreUniforms = useDisplacementUniforms(${style.coreScale}, ORB.distortion * 0.55 * ${form.coreAgitation});
   const phase = useRef(0);
   const halo = useRef(null);
 

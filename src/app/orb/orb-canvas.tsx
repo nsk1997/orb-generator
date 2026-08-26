@@ -35,6 +35,7 @@ function selectOrbSceneInputs(state: ToolcraftState): OrbSceneInputs {
     includeBackground: shouldIncludeToolcraftPreviewBackground({ state }),
     params: readOrbParams(state.values),
     pose: readToolcraftOrientationPose(state.values[orbTargets.viewOrbit]),
+    stateId: readOrbStateId(state.values[orbTargets.state]),
     viewDistance: readOrbViewDistance(state.values),
   };
 }
@@ -48,6 +49,7 @@ function orbSceneInputsEqual(
 
   return (
     previous.backgroundColor === next.backgroundColor &&
+    previous.stateId === next.stateId &&
     previous.includeBackground === next.includeBackground &&
     previous.viewDistance === next.viewDistance &&
     previous.pose.position.every(

@@ -1,3 +1,5 @@
+import { converter, formatHex, toGamut } from "culori";
+
 import type { OrbParams } from "./orb-params";
 
 export type OrbStyleId = "glass" | "bubble" | "frost" | "metal" | "plasma";
@@ -287,15 +289,47 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
  * Colour deliberately belongs to the style, or every style would look alike
  * the moment a state was applied.
  */
+/**
+ * The shape language of a state, not its amount. Each state departs into its
+ * own form and returns; the weights are damped, so switching states morphs
+ * between forms instead of cutting.
+ */
+export type OrbStateForm = {
+  /** Damps the fine ripple so a calm state reads as calm, not merely slow. */
+  calm: number;
+  /** Multiplies core displacement, so a state can churn inside a still shell. */
+  coreAgitation: number;
+  /** Beat envelope on the whole displacement: bursts rather than an even buzz. */
+  pulse: number;
+  /** A travelling ridge that circles the orb, reading as a scan. */
+  sweep: number;
+  /** Rotates the noise domain instead of drifting it. */
+  swirl: number;
+};
+
+/**
+ * Subtle-to-medium palette shift in OKLCH. States modulate the style's colours
+ * rather than replacing them, so style identity survives while the four states
+ * stay legible at a glance.
+ */
+export type OrbStateTint = {
+  chromaAdd: number;
+  coreLightnessAdd: number;
+  hueRotate: number;
+  lightnessAdd: number;
+};
+
 export type OrbStateDelta = {
   chromaticAberrationAdd: number;
   distortionAdd: number;
   flowSpeedScale: number;
   glowIntensityScale: number;
   glowSpreadScale: number;
+  form: OrbStateForm;
   iorAdd: number;
   label: string;
   roughnessScale: number;
+  tint: OrbStateTint;
 };
 
 export const orbStateOrder: readonly OrbStateId[] = [
@@ -309,42 +343,50 @@ export const orbStateDeltas: Record<OrbStateId, OrbStateDelta> = {
   idle: {
     chromaticAberrationAdd: 0,
     distortionAdd: 0,
+    form: { calm: 1, coreAgitation: 1, pulse: 0, sweep: 0, swirl: 0.15 },
     flowSpeedScale: 1,
     glowIntensityScale: 1,
     glowSpreadScale: 1,
     iorAdd: 0,
     label: "Idle",
     roughnessScale: 1,
+    tint: { chromaAdd: 0, coreLightnessAdd: 0, hueRotate: 0, lightnessAdd: 0 },
   },
   think: {
     chromaticAberrationAdd: 0.08,
     distortionAdd: 0.1,
+    form: { calm: 0.55, coreAgitation: 2.2, pulse: 0.15, sweep: 0, swirl: 0.9 },
     flowSpeedScale: 1.7,
     glowIntensityScale: 1.15,
     glowSpreadScale: 0.92,
     iorAdd: 0.14,
     label: "Think",
     roughnessScale: 0.85,
+    tint: { chromaAdd: 0.03, coreLightnessAdd: 0.05, hueRotate: -8, lightnessAdd: 0.02 },
   },
   search: {
     chromaticAberrationAdd: 0.25,
     distortionAdd: 0.02,
+    form: { calm: 0.7, coreAgitation: 0.8, pulse: 0, sweep: 1, swirl: 0.35 },
     flowSpeedScale: 3.2,
     glowIntensityScale: 1.35,
     glowSpreadScale: 0.78,
     iorAdd: 0.42,
     label: "Search",
     roughnessScale: 0.4,
+    tint: { chromaAdd: 0.05, coreLightnessAdd: 0.03, hueRotate: 14, lightnessAdd: 0.03 },
   },
   speak: {
     chromaticAberrationAdd: 0.05,
     distortionAdd: 0.28,
+    form: { calm: 0.3, coreAgitation: 1.4, pulse: 1, sweep: 0, swirl: 0.25 },
     flowSpeedScale: 2.2,
     glowIntensityScale: 1.9,
     glowSpreadScale: 0.72,
     iorAdd: -0.08,
     label: "Speak",
     roughnessScale: 1.1,
+    tint: { chromaAdd: 0.04, coreLightnessAdd: 0.09, hueRotate: 5, lightnessAdd: 0.05 },
   },
 };
 
@@ -358,6 +400,34 @@ export const orbParamRanges = {
   ior: [1, 3],
   roughness: [0, 1],
 } as const satisfies Record<string, readonly [number, number]>;
+
+const toOklch = converter("oklch");
+const intoDisplayGamut = toGamut("rgb", "oklch");
+
+/**
+ * Shifts a colour in OKLCH so lightness and chroma move perceptually rather
+ * than by RGB arithmetic, then gamut-maps instead of clipping so a pushed
+ * chroma stays hue-true.
+ */
+export function applyOrbTint(
+  hex: string,
+  shift: Readonly<{ chromaAdd: number; hueRotate: number; lightnessAdd: number }>,
+): string {
+  const base = toOklch(hex);
+
+  if (!base) {
+    return hex;
+  }
+
+  const shifted = {
+    ...base,
+    c: Math.max(0, (base.c ?? 0) + shift.chromaAdd),
+    h: ((base.h ?? 0) + shift.hueRotate + 360) % 360,
+    l: Math.min(1, Math.max(0, base.l + shift.lightnessAdd)),
+  };
+
+  return formatHex(intoDisplayGamut(shifted)).toUpperCase();
+}
 
 function clamp(value: number, [min, max]: readonly [number, number]): number {
   return Math.min(max, Math.max(min, value));
@@ -382,7 +452,11 @@ export function resolveOrbPreset(
         orbParamRanges.chromaticAberration,
       ),
     ),
-    coreColor: base.coreColor,
+    coreColor: applyOrbTint(base.coreColor, {
+      chromaAdd: delta.tint.chromaAdd * 0.5,
+      hueRotate: delta.tint.hueRotate * 0.5,
+      lightnessAdd: delta.tint.coreLightnessAdd,
+    }),
     distortion: round(
       clamp(base.distortion + delta.distortionAdd, orbParamRanges.distortion),
     ),
@@ -399,7 +473,7 @@ export function resolveOrbPreset(
       clamp(base.glowSpread * delta.glowSpreadScale, orbParamRanges.glowSpread),
     ),
     ior: round(clamp(base.ior + delta.iorAdd, orbParamRanges.ior)),
-    primaryColor: base.primaryColor,
+    primaryColor: applyOrbTint(base.primaryColor, delta.tint),
     roughness: round(
       clamp(base.roughness * delta.roughnessScale, orbParamRanges.roughness),
     ),

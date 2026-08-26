@@ -5,18 +5,26 @@ import { orbDisplacementChunk, orbNoiseChunk } from "./orb-shader-chunks";
 export type OrbUniform<Value> = { value: Value };
 
 export type OrbDisplacementUniforms = {
+  orbCalm: OrbUniform<number>;
   orbDistortion: OrbUniform<number>;
   orbFlow: OrbUniform<number>;
+  orbPulse: OrbUniform<number>;
   orbScale: OrbUniform<number>;
+  orbSweep: OrbUniform<number>;
+  orbSwirl: OrbUniform<number>;
 };
 
 export function createOrbDisplacementUniforms(
   scale: number,
 ): OrbDisplacementUniforms {
   return {
+    orbCalm: { value: 1 },
     orbDistortion: { value: 0 },
     orbFlow: { value: 0 },
+    orbPulse: { value: 0 },
     orbScale: { value: scale },
+    orbSweep: { value: 0 },
+    orbSwirl: { value: 0 },
   };
 }
 
@@ -67,9 +75,9 @@ export function applyOrbDisplacementToShader(
   shader: WebGLProgramParametersWithUniforms,
   uniforms: OrbDisplacementUniforms,
 ): void {
-  shader.uniforms.orbDistortion = uniforms.orbDistortion;
-  shader.uniforms.orbFlow = uniforms.orbFlow;
-  shader.uniforms.orbScale = uniforms.orbScale;
+  for (const name of Object.keys(uniforms) as (keyof OrbDisplacementUniforms)[]) {
+    shader.uniforms[name] = uniforms[name];
+  }
 
   let vertexShader = orbVertexPreamble + shader.vertexShader;
   vertexShader = replaceMarker(vertexShader, normalMarker, displacedNormalSource);
