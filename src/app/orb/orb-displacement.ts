@@ -9,6 +9,7 @@ export type OrbDisplacementUniforms = {
   orbDistortion: OrbUniform<number>;
   orbFlow: OrbUniform<number>;
   orbPulse: OrbUniform<number>;
+  orbRidge: OrbUniform<number>;
   orbScale: OrbUniform<number>;
   orbSweep: OrbUniform<number>;
   orbSwirl: OrbUniform<number>;
@@ -16,12 +17,14 @@ export type OrbDisplacementUniforms = {
 
 export function createOrbDisplacementUniforms(
   scale: number,
+  ridge = 0,
 ): OrbDisplacementUniforms {
   return {
     orbCalm: { value: 1 },
     orbDistortion: { value: 0 },
     orbFlow: { value: 0 },
     orbPulse: { value: 0 },
+    orbRidge: { value: ridge },
     orbScale: { value: scale },
     orbSweep: { value: 0 },
     orbSwirl: { value: 0 },

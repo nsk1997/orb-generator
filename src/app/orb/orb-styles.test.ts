@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   getOrbPresetWrites,
+  isOrbStyleOpaque,
   orbColourParamKeys,
+  orbOpaqueStyleIds,
   orbParamRanges,
   orbStateDeltas,
   orbStateOrder,
@@ -81,15 +83,112 @@ describe("orb style and state composition", () => {
     }
   });
 
-  it("skips both transmission passes only for the opaque style", () => {
-    // Drei renders the backside and main buffers unless transmission is 0,
-    // so this is a real cost claim, not a cosmetic flag.
-    expect(orbStyles.metal.material.transmission).toBe(0);
-    expect(orbStyles.metal.material.metalness).toBe(1);
+  it("ties the transmission passes to the surface each style declares", () => {
+    // Drei renders the backside and main buffers unless transmission is 0, so
+    // `surface` is a cost claim, not a cosmetic flag. The rule is derived from
+    // the declaration rather than from a style name, so a second opaque style
+    // is covered the moment it exists instead of when someone remembers.
+    const opaque = orbStyleOrder.filter(
+      (id) => orbStyles[id].surface === "opaque",
+    );
 
-    for (const styleId of orbStyleOrder.filter((id) => id !== "metal")) {
-      expect(orbStyles[styleId].material.transmission).toBeGreaterThan(0);
-      expect(orbStyles[styleId].material.metalness).toBe(0);
+    expect(opaque.length).toBeGreaterThan(0);
+    expect([...orbOpaqueStyleIds]).toEqual(opaque);
+
+    for (const styleId of orbStyleOrder) {
+      const style = orbStyles[styleId];
+
+      expect(isOrbStyleOpaque(styleId)).toBe(style.surface === "opaque");
+
+      if (style.surface === "opaque") {
+        expect(
+          style.material.transmission,
+          `${styleId} declares an opaque surface but still transmits`,
+        ).toBe(0);
+        // A dielectric that transmits nothing is a painted ball. Only a metal
+        // earns its living from reflection alone.
+        expect(
+          style.material.metalness,
+          `${styleId} is opaque but has nothing to reflect with`,
+        ).toBeGreaterThan(0);
+        continue;
+      }
+
+      expect(
+        style.material.transmission,
+        `${styleId} declares a transmissive surface but transmits nothing`,
+      ).toBeGreaterThan(0);
+      // Metalness closes transmission in the physical material, so the two
+      // can never both be on.
+      expect(style.material.metalness).toBe(0);
+    }
+  });
+
+  it("keeps surface character with the style, not with the state", () => {
+    // Ridge is what separates a fluid from a spiked one. If a state owned it,
+    // every style would turn into a ferrofluid on the way to Speak.
+    expect(orbStyleOrder.some((id) => orbStyles[id].ridge > 0)).toBe(true);
+
+    for (const styleId of orbStyleOrder) {
+      expect(orbStyles[styleId].ridge).toBeGreaterThanOrEqual(0);
+      expect(orbStyles[styleId].ridge).toBeLessThanOrEqual(1);
+    }
+
+    for (const stateId of orbStateOrder) {
+      expect(Object.keys(orbStateDeltas[stateId].form)).not.toContain("ridge");
+    }
+  });
+
+  it("gives a faceted style geometry coarse enough to have faces", () => {
+    // Flat shading a finely subdivided sphere still reads as a sphere: the
+    // facets have to exist in the geometry before shading can show them.
+    expect(orbStyleOrder.some((id) => orbStyles[id].shell.flatShading)).toBe(true);
+
+    for (const styleId of orbStyleOrder) {
+      const { shell } = orbStyles[styleId];
+
+      if (shell.flatShading) {
+        expect(
+          shell.detail,
+          `${styleId} shades flat but is too subdivided to read as faceted`,
+        ).toBeLessThanOrEqual(4);
+        continue;
+      }
+
+      // Smooth displacement needs vertices to displace.
+      expect(shell.detail).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it("keeps a volume interior inside the shell that contains it", () => {
+    expect(
+      orbStyleOrder.some((id) => orbStyles[id].interior.kind === "nebula"),
+    ).toBe(true);
+
+    for (const styleId of orbStyleOrder) {
+      const style = orbStyles[styleId];
+
+      if (style.interior.kind !== "nebula") {
+        continue;
+      }
+
+      expect(style.interior.density).toBeGreaterThan(0);
+      // A volume is only visible through a shell that transmits.
+      expect(style.surface).toBe("transmissive");
+
+      // Think agitates the core hardest. The dominant displacement term is
+      // `amount * 0.72`, so this bounds the widest the volume can swell to
+      // before it pushes out through the body.
+      const reach =
+        style.base.distortion *
+        0.55 *
+        orbStateDeltas.think.form.coreAgitation *
+        0.72;
+
+      expect(
+        style.coreScale + reach,
+        `${styleId} can push its volume out through its own shell`,
+      ).toBeLessThan(0.98);
     }
   });
 

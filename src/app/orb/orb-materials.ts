@@ -20,6 +20,7 @@ ${orbDisplacementChunk}
 
 varying vec3 vOrbNormal;
 varying vec3 vOrbView;
+varying vec3 vOrbWorld;
 
 void main() {
   vec3 displaced;
@@ -28,6 +29,9 @@ void main() {
 
   vOrbNormal = normalize(normalMatrix * normalObject);
   vOrbView = normalize(-viewPosition.xyz);
+  // The volume interior marches against three's cameraPosition uniform, which
+  // is world space, so the entry point has to be world space too.
+  vOrbWorld = (modelMatrix * vec4(displaced, 1.0)).xyz;
 
   gl_Position = projectionMatrix * viewPosition;
 }
@@ -130,6 +134,105 @@ export function createOrbCoreMaterial(scale: number): OrbCoreMaterial {
       ...createOrbDisplacementUniforms(scale),
       orbCoreColor: { value: new Color("#22D3EE") },
       orbCoreIntensity: { value: 1 },
+    },
+    vertexShader: orbLayerVertexShader,
+  }) as OrbCoreMaterial;
+}
+
+/** Ten steps band visibly; a fixed per-pixel offset breaks the bands up. */
+export const orbNebulaSteps = 10;
+
+export const orbNebulaFragmentShader = /* glsl */ `
+${orbNoiseChunk}
+${orbDisplacementChunk}
+uniform vec3 orbCoreColor;
+uniform float orbCoreIntensity;
+uniform float orbNebulaDensity;
+
+varying vec3 vOrbWorld;
+
+const int ORB_NEBULA_STEPS = ${orbNebulaSteps};
+
+/**
+ * Density at one point inside the shell. Densest in a band partway out, so the
+ * volume reads as cloud with structure rather than as one bright ball, and
+ * driven by the same looping noise as the surface so a captured cycle still
+ * stitches.
+ */
+float orbNebulaSample(vec3 point, float phase) {
+  vec3 turned = mix(point, orbRotateY(point, phase * ORB_TAU), orbSwirl);
+  const vec3 volumeDrift = vec3(-1.8, 2.4, 1.2);
+  float field = orbLoopFbm(turned * (3.4 / orbScale), volumeDrift, phase);
+  float radial = clamp(length(point) / orbScale, 0.0, 1.0);
+  float band = smoothstep(0.0, 0.3, radial) * pow(1.0 - radial, 0.9);
+
+  // Raising the positive half to a power thins the field into filaments and
+  // voids. Left linear it accumulates into an even haze with no structure.
+  return pow(max(field, 0.0), 1.8) * band;
+}
+
+float orbNebulaDither(vec2 fragment) {
+  return fract(sin(dot(fragment, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() {
+  // The interior mesh is untransformed, so the shell is centred on the world
+  // origin and the chord from a point on it has a closed form: the near root
+  // is zero, which leaves the far root alone.
+  vec3 rayDirection = normalize(vOrbWorld - cameraPosition);
+  float along = dot(vOrbWorld, rayDirection);
+  float span = max(-2.0 * along, 0.0);
+  float stepLength = span / float(ORB_NEBULA_STEPS);
+  float phase = fract(orbFlow / ORB_LOOP_SPAN);
+  float jitter = orbNebulaDither(gl_FragCoord.xy);
+
+  float accumulated = 0.0;
+  float peak = 0.0;
+
+  for (int index = 0; index < ORB_NEBULA_STEPS; index++) {
+    vec3 point = vOrbWorld + rayDirection * (float(index) + jitter) * stepLength;
+    float density = orbNebulaSample(point, phase);
+    accumulated += density * stepLength;
+    peak = max(peak, density);
+  }
+
+  // Thickness carries brightness and the densest sample carries hue, so a thin
+  // wisp stays deep and a knot in the cloud goes hot.
+  // Tone mapping walks bright values toward white, so the volume is kept
+  // under the knee and only the densest knots are allowed to go hot. Blowing
+  // the middle out costs the style the colour it exists for.
+  float amount = clamp(accumulated * orbNebulaDensity, 0.0, 1.3);
+  vec3 deep = orbCoreColor * 0.5;
+  vec3 hot = mix(orbCoreColor, vec3(1.0), 0.15) * 1.9;
+  vec3 volume = mix(deep, hot, clamp(peak * 2.0, 0.0, 1.0)) * amount;
+
+  gl_FragColor = vec4(volume * orbCoreIntensity, 1.0);
+
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/**
+ * A volume raymarched through the shell instead of an emissive shell of its
+ * own. Same uniforms as the core material, so the render loop drives either
+ * interior without knowing which one is mounted.
+ */
+export function createOrbNebulaMaterial(
+  scale: number,
+  density: number,
+): OrbCoreMaterial {
+  return new ShaderMaterial({
+    blending: AdditiveBlending,
+    depthWrite: false,
+    fragmentShader: orbNebulaFragmentShader,
+    side: FrontSide,
+    transparent: true,
+    uniforms: {
+      ...createOrbDisplacementUniforms(scale),
+      orbCoreColor: { value: new Color("#FF7AE0") },
+      orbCoreIntensity: { value: 1 },
+      orbNebulaDensity: { value: density },
     },
     vertexShader: orbLayerVertexShader,
   }) as OrbCoreMaterial;

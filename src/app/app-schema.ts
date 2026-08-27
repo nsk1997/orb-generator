@@ -8,6 +8,7 @@ import {
   orbViewDistanceDefault,
 } from "./orb/orb-params";
 import {
+  orbOpaqueStyleIds,
   orbStateDeltas,
   orbStateOrder,
   orbStyleOrder,
@@ -48,9 +49,11 @@ export const appSchema = defineToolcraft({
             },
             ior: {
               // Index of refraction does nothing at metalness 1, so the
-              // control disappears rather than sitting there inert.
+              // control disappears rather than sitting there inert. The list
+              // is derived from the styles themselves, so a new opaque style
+              // cannot forget to hide it.
               applicability: {
-                all: [{ notEquals: "metal", target: orbTargets.style }],
+                all: [{ notOneOf: orbOpaqueStyleIds, target: orbTargets.style }],
                 mode: "conditional",
               },
               defaultValue: orbDefaults.ior,
@@ -87,7 +90,7 @@ export const appSchema = defineToolcraft({
               // Aberration is a property of transmitted light; an opaque
               // style has none to split.
               applicability: {
-                all: [{ notEquals: "metal", target: orbTargets.style }],
+                all: [{ notOneOf: orbOpaqueStyleIds, target: orbTargets.style }],
                 mode: "conditional",
               },
               defaultValue: orbDefaults.chromaticAberration,

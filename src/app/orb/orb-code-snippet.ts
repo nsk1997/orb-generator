@@ -1,6 +1,26 @@
+import { orbNebulaFragmentShader } from "./orb-materials";
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 import type { OrbStateForm, OrbStyle } from "./orb-styles";
+
+/**
+ * The emissive interior, as a value rather than inline text, so a style that
+ * raymarches a volume instead can swap the whole fragment stage.
+ */
+const orbCoreFragmentSource = /* glsl */ `
+uniform vec3 orbCoreColor;
+uniform float orbCoreIntensity;
+varying vec3 vOrbNormal;
+varying vec3 vOrbView;
+void main() {
+  float facing = clamp(abs(dot(normalize(vOrbNormal), normalize(vOrbView))), 0.0, 1.0);
+  float hot = pow(facing, 3.0);
+  vec3 plasma = mix(orbCoreColor * 0.05, orbCoreColor * 1.45, hot);
+  gl_FragColor = vec4(plasma * orbCoreIntensity, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
 
 /** Matches the live renderer: glass stays light, attenuation carries colour. */
 function lightenTowardWhite(hex: string, amount: number): string {
@@ -32,9 +52,18 @@ export function createOrbCodeSnippet(
   }>,
 ): string {
   const { form, style } = options;
-  const { material, studio } = style;
+  const { interior, material, studio } = style;
   const vertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}`.trim();
   const glassTint = lightenTowardWhite(params.primaryColor, style.tintLift);
+  // A volume interior is a whole fragment stage, not a parameter, so the two
+  // interiors are emitted as alternatives rather than as one shader with a
+  // dead branch in it.
+  const interiorFragment =
+    interior.kind === "nebula" ? orbNebulaFragmentShader : orbCoreFragmentSource;
+  const interiorUniforms =
+    interior.kind === "nebula"
+      ? `\n            orbNebulaDensity: { value: ${interior.density} },`
+      : "";
 
   return `// Orb generated with the Orb Generator.
 // npm i three @react-three/fiber @react-three/drei @react-three/postprocessing postprocessing
@@ -58,6 +87,7 @@ const ORB = {
   style: "${style.id}",
   calm: ${form.calm},
   pulse: ${form.pulse},
+  ridge: ${style.ridge},
   sweep: ${form.sweep},
   swirl: ${form.swirl},
   bloomIntensity: ${round(style.bloom.intensity * (0.55 + params.glowIntensity * 0.45))},
@@ -74,12 +104,14 @@ ${vertexPreamble}
 const ORB_LAYER_VERTEX = \`\${ORB_VERTEX_PREAMBLE}
 varying vec3 vOrbNormal;
 varying vec3 vOrbView;
+varying vec3 vOrbWorld;
 void main() {
   vec3 displaced;
   vec3 normalObject = orbDisplacedNormal(position, orbDistortion, displaced);
   vec4 viewPosition = modelViewMatrix * vec4(displaced, 1.0);
   vOrbNormal = normalize(normalMatrix * normalObject);
   vOrbView = normalize(-viewPosition.xyz);
+  vOrbWorld = (modelMatrix * vec4(displaced, 1.0)).xyz;
   gl_Position = projectionMatrix * viewPosition;
 }\`;
 
@@ -156,19 +188,9 @@ const ORB_LIGHT_CARDS = [
   { color: "#FFFFFF", intensity: 60, position: [-3.4, 3.6, 5.5], rotation: [0, 0, 0], scale: [2.2, 2.2, 1], softness: 2 },
 ];
 
-const ORB_CORE_FRAGMENT = \`
-uniform vec3 orbCoreColor;
-uniform float orbCoreIntensity;
-varying vec3 vOrbNormal;
-varying vec3 vOrbView;
-void main() {
-  float facing = clamp(abs(dot(normalize(vOrbNormal), normalize(vOrbView))), 0.0, 1.0);
-  float hot = pow(facing, 1.7);
-  vec3 plasma = mix(orbCoreColor * 0.28, orbCoreColor * 1.75, hot);
-  gl_FragColor = vec4(plasma * orbCoreIntensity, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}\`;
+const ORB_INTERIOR_FRAGMENT = \`
+${interiorFragment.trim()}
+\`;
 
 function useDisplacementUniforms(scale, distortion) {
   return useMemo(
@@ -178,6 +200,7 @@ function useDisplacementUniforms(scale, distortion) {
       orbDistortion: { value: distortion },
       orbFlow: { value: 0 },
       orbPulse: { value: ORB.pulse },
+      orbRidge: { value: ORB.ridge },
       orbScale: { value: scale },
       orbSweep: { value: ORB.sweep },
       orbSwirl: { value: ORB.swirl },
@@ -269,21 +292,21 @@ function Orb() {
         <shaderMaterial
           blending={THREE.AdditiveBlending}
           depthWrite={false}
-          fragmentShader={ORB_CORE_FRAGMENT}
+          fragmentShader={ORB_INTERIOR_FRAGMENT}
           transparent
           uniforms={{
             ...coreUniforms,
             orbCoreColor: { value: new THREE.Color(ORB.coreColor) },
-            orbCoreIntensity: { value: 0.5 + ORB.glowIntensity * 0.28 },
+            orbCoreIntensity: { value: (0.5 + ORB.glowIntensity * 0.28) * ${style.coreIntensityScale} },${interiorUniforms}
           }}
           vertexShader={ORB_LAYER_VERTEX}
         />
       </mesh>
 
       <mesh renderOrder={1}>
-        <icosahedronGeometry args={[1, 24]} />
+        <icosahedronGeometry args={[1, ${style.shell.detail}]} />
         <MeshTransmissionMaterial
-          anisotropicBlur={0.4}
+          anisotropicBlur={${material.anisotropicBlur}}
           attenuationColor={ORB.primaryColor}
           attenuationDistance={${material.attenuationDistance}}
           clearcoat={${material.clearcoat}}
@@ -298,6 +321,7 @@ function Orb() {
           distortion={0.06}
           distortionScale={0.5}
           envMapIntensity={${material.envMapIntensity}}
+          flatShading={${style.shell.flatShading}}
           metalness={${material.metalness}}
           ior={ORB.ior}
           ref={attachBody}

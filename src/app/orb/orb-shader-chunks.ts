@@ -90,6 +90,10 @@ uniform float orbPulse;
 uniform float orbSweep;
 uniform float orbSwirl;
 
+// Surface character, owned by the style rather than by a state: 0 is the
+// fluid swell every style shipped with, 1 is a spiked ferrofluid.
+uniform float orbRidge;
+
 const float ORB_LOOP_SPAN = ${orbLoopSpan.toFixed(1)};
 const float ORB_TAU = 6.2831853;
 
@@ -138,6 +142,20 @@ vec3 orbDisplace(vec3 p, float amount) {
 
   float swell = orbLoopNoise(sampled * 0.85, swellDrift, t);
   float ripple = orbLoopFbm(sampled * 1.35, rippleDrift, t) * orbCalm;
+
+  // Folding a field at zero turns smooth swells into creases, and raising the
+  // creases to a power sharpens them into the cones a magnetised fluid stands
+  // up in. The spikes get their own, much tighter sample: ridging the broad
+  // swell instead gives broad creases, which reads as crushed foil. Mixed
+  // rather than switched, so a style can sit anywhere between fluid and
+  // spiked, and re-centred so ridging changes the shape without inflating the
+  // radius.
+  float spikeField = orbLoopNoise(sampled * 2.1, swellDrift * 1.4, t);
+  float crease = clamp(1.0 - abs(spikeField), 0.0, 1.0);
+  float spike = pow(crease, 6.0) * 2.2 - 0.4;
+  swell = mix(swell, spike, orbRidge);
+  ripple = mix(ripple, abs(ripple) * 1.15 - 0.2, orbRidge);
+
   float breathe = (sin(angle) * 0.7 + sin(angle * 2.0 + 1.3) * 0.3) * 0.18;
 
   // A ridge circling the orb, anchored to the world rather than to the swirl,
@@ -166,7 +184,9 @@ vec3 orbDisplacedNormal(vec3 p, float amount, out vec3 displaced) {
   vec3 unit = normalize(p);
   vec3 tangent = orbTangent(unit);
   vec3 bitangent = cross(unit, tangent);
-  const float epsilon = 0.045;
+  // Narrower when the surface is ridged: a difference wide enough for broad
+  // swells averages a cone flat before it can be lit as one.
+  float epsilon = mix(0.045, 0.016, orbRidge);
 
   displaced = orbDisplace(unit, amount);
   vec3 alongTangent = orbDisplace(normalize(unit + tangent * epsilon), amount);

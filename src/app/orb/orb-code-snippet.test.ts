@@ -63,6 +63,33 @@ describe("copy code snippet", () => {
     }
   });
 
+  it("emits the interior the selected style actually renders", () => {
+    // The two interiors are different fragment stages, not a parameter, so a
+    // copied volume style that pasted the emissive core would be a different
+    // object from the one on screen.
+    const nebula = snippetFor("nebula");
+    expect(nebula).toContain("orbNebulaSample");
+    expect(nebula).toContain("orbNebulaDensity: { value:");
+    expect(nebula).toContain("varying vec3 vOrbWorld;");
+
+    const glass = snippetFor("glass");
+    expect(glass).not.toContain("orbNebulaSample");
+    expect(glass).not.toContain("orbNebulaDensity");
+  });
+
+  it("emits the shell geometry and shading the style uses", () => {
+    for (const styleId of orbStyleOrder) {
+      const { shell } = orbStyles[styleId];
+      const snippet = snippetFor(styleId);
+
+      expect(snippet).toContain(`args={[1, ${shell.detail}]}`);
+      expect(snippet).toContain(`flatShading={${shell.flatShading}}`);
+    }
+
+    // The one style that is faceted must not paste back as a smooth sphere.
+    expect(snippetFor("crystal")).toContain("flatShading={true}");
+  });
+
   it("carries the post pipeline, or a pasted orb would lose its glow", () => {
     for (const styleId of orbStyleOrder) {
       const snippet = snippetFor(styleId);

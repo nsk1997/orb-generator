@@ -79,7 +79,7 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   productSummary:
     "A refractive, fluidly morphing assistant orb tuned from a form panel and delivered as a PNG or a React Three Fiber snippet.",
   requestedBehavior:
-    "Render a glass orb with transmission, refraction, and surface distortion; move it between Idle, Thinking, Searching, and Speaking presets; bind colours, refractive index, flow speed, distortion, and outer glow to live form controls; and copy a usable R3F snippet for the current values.",
+    "Render an orb with transmission, refraction, and surface distortion; switch it between styles that differ in kind — smooth glass, a faceted crystal, a spiked ferrofluid, and a raymarched nebula interior — move it between Idle, Thinking, Searching, and Speaking presets; bind colours, refractive index, flow speed, distortion, and outer glow to live form controls; and copy a usable R3F snippet for the current values.",
   viewInteraction: {
     mode: "orbit",
     orientationTargets: ["view.orbit"],
@@ -203,13 +203,13 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "select",
     evidence: "rendered-pixels",
     expectedObservable:
-      "Choosing a style writes that style's palette and resting parameters into the visible controls, rebuilds the studio it reflects, and switches the surface material; the opaque style also hides Refractive index and Chromatic aberration.",
+      "Choosing a style writes that style's palette and resting parameters into the visible controls, rebuilds the studio it reflects, and switches the surface material, the shell geometry, and the interior; an opaque style also hides Refractive index and Chromatic aberration.",
     fixture: "default orb at the Glass style, Idle state",
     id: "orb.style",
     kind: "control",
     optionCoverage: "each-visible-item",
     target: "orb.style",
-    userAction: "Choose Glass, Bubble, Frost, and Metal in turn.",
+    userAction: "Choose Glass, Bubble, Crystal, Frost, Metal, Ferrofluid, Nebula, and Plasma in turn.",
   },
   {
     automated: true,

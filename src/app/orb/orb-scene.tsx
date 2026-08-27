@@ -20,6 +20,7 @@ import {
   createOrbDomeMaterial,
   createOrbGlowMaterial,
   createOrbLightCardMaterial,
+  createOrbNebulaMaterial,
 } from "./orb-materials";
 import {
   attachOrbDisplacement,
@@ -114,9 +115,15 @@ export function OrbScene({
   }, []);
 
   const glowMaterial = React.useMemo(() => createOrbGlowMaterial(), []);
+  // Both interiors expose the same uniforms, so the render loop below drives
+  // whichever one is mounted without branching.
+  const { interior } = style;
   const coreMaterial = React.useMemo(
-    () => createOrbCoreMaterial(style.coreScale),
-    [style.coreScale],
+    () =>
+      interior.kind === "nebula"
+        ? createOrbNebulaMaterial(style.coreScale, interior.density)
+        : createOrbCoreMaterial(style.coreScale),
+    [interior, style.coreScale],
   );
 
   const bodyRef = React.useRef<Mesh | null>(null);
@@ -144,6 +151,7 @@ export function OrbScene({
     calm: 1,
     coreAgitation: 1,
     pulse: 0,
+    ridge: 0,
     sweep: 0,
     swirl: 0.15,
     transientFollow: 0,
@@ -254,6 +262,9 @@ export function OrbScene({
       step,
     );
 
+    // Ridge belongs to the style, not the state, but it morphs on the same
+    // clock: cutting straight to spikes reads as a different object appearing.
+    state.ridge = MathUtils.damp(state.ridge, style.ridge, responseRates.form, step);
     state.calm = MathUtils.damp(state.calm, form.calm, responseRates.form, step);
     state.pulse = MathUtils.damp(state.pulse, form.pulse, responseRates.form, step);
     state.sweep = MathUtils.damp(state.sweep, form.sweep, responseRates.form, step);
@@ -281,8 +292,10 @@ export function OrbScene({
       body.roughness = state.roughness;
       body.chromaticAberration = state.chromaticAberration;
       // A lightened primary keeps transmitted light luminous while volume
-      // attenuation carries the saturated colour through the thick middle.
-      glassTint.copy(shownPrimary).lerp(whitePoint, 0.55);
+      // attenuation carries the saturated colour through the thick middle. How
+      // far to lift belongs to the style: a soap film is nearly white and a
+      // ferrofluid is nearly black, and one fixed amount cannot be both.
+      glassTint.copy(shownPrimary).lerp(whitePoint, style.tintLift);
       body.color.copy(glassTint);
       body.attenuationColor.copy(shownPrimary);
       body.time = state.flowPhase;
@@ -293,6 +306,7 @@ export function OrbScene({
     bodyUniforms.orbDistortion.value = shellDistortion;
     bodyUniforms.orbFlow.value = state.flowPhase;
     bodyUniforms.orbPulse.value = state.pulse;
+    bodyUniforms.orbRidge.value = state.ridge;
     bodyUniforms.orbSweep.value = state.sweep;
     bodyUniforms.orbSwirl.value = state.swirl;
 
@@ -303,6 +317,7 @@ export function OrbScene({
 
     coreMaterial.uniforms.orbCalm.value = state.calm;
     coreMaterial.uniforms.orbPulse.value = state.pulse;
+    coreMaterial.uniforms.orbRidge.value = state.ridge;
     coreMaterial.uniforms.orbSwirl.value = state.swirl;
     // The core can churn inside a still shell, which is what Think looks like.
     coreMaterial.uniforms.orbDistortion.value =
@@ -350,9 +365,9 @@ export function OrbScene({
         <icosahedronGeometry args={[1, 10]} />
       </mesh>
       <mesh ref={bodyRef} renderOrder={1}>
-        <icosahedronGeometry args={[1, 24]} />
+        <icosahedronGeometry args={[1, style.shell.detail]} />
         <MeshTransmissionMaterial
-          anisotropicBlur={0.4}
+          anisotropicBlur={material.anisotropicBlur}
           attenuationDistance={material.attenuationDistance}
           background={environmentMap ?? undefined}
           backside={material.transmission > 0}
@@ -363,6 +378,7 @@ export function OrbScene({
           distortion={0.06}
           distortionScale={0.5}
           envMapIntensity={material.envMapIntensity}
+          flatShading={style.shell.flatShading}
           ior={style.base.ior}
           iridescence={material.iridescence}
           iridescenceIOR={material.iridescenceIOR}
