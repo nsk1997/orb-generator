@@ -163,20 +163,33 @@ describe("orb style and state composition", () => {
     }
   });
 
-  it("keeps a volume interior inside the shell that contains it", () => {
-    expect(
-      orbStyleOrder.some((id) => orbStyles[id].interior.kind === "nebula"),
-    ).toBe(true);
+  it("keeps a rendered interior inside the shell that contains it", () => {
+    const rendered = orbStyleOrder.filter(
+      (id) => orbStyles[id].interior.kind !== "core",
+    );
+
+    expect(rendered.length).toBeGreaterThan(0);
 
     for (const styleId of orbStyleOrder) {
       const style = orbStyles[styleId];
 
-      if (style.interior.kind !== "nebula") {
+      if (style.interior.kind === "core") {
         continue;
       }
 
-      expect(style.interior.density).toBeGreaterThan(0);
-      // A volume is only visible through a shell that transmits.
+      if (style.interior.kind === "nebula") {
+        expect(style.interior.density).toBeGreaterThan(0);
+      }
+
+      if (style.interior.kind === "aurora") {
+        // Zero spread collapses the four-stop ramp onto the two colours the
+        // user picked, and a full turn comes back to where it started, so
+        // neither end is a usable value.
+        expect(style.interior.spread).toBeGreaterThan(0);
+        expect(style.interior.spread).toBeLessThan(Math.PI);
+      }
+
+      // An interior is only visible through a shell that transmits.
       expect(style.surface).toBe("transmissive");
 
       // Think agitates the core hardest. The dominant displacement term is
@@ -190,7 +203,7 @@ describe("orb style and state composition", () => {
 
       expect(
         style.coreScale + reach,
-        `${styleId} can push its volume out through its own shell`,
+        `${styleId} can push its interior out through its own shell`,
       ).toBeLessThan(0.98);
     }
   });

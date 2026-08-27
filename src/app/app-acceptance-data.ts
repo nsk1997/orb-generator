@@ -79,7 +79,7 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   productSummary:
     "A refractive, fluidly morphing assistant orb tuned from a form panel and delivered as a PNG or a React Three Fiber snippet.",
   requestedBehavior:
-    "Render an orb with transmission, refraction, and surface distortion; switch it between styles that differ in kind — smooth glass, a faceted crystal, amber that takes its colour from depth, a polished opaque stone, a spiked ferrofluid, and a raymarched nebula interior — move it between Idle, Thinking, Searching, and Speaking presets; bind colours, refractive index, flow speed, distortion, and outer glow to live form controls; and copy a usable R3F snippet for the current values.",
+    "Render an orb with transmission, refraction, and surface distortion; switch it between styles that differ in kind — smooth glass, a faceted crystal, amber that takes its colour from depth, a polished opaque stone, a spiked ferrofluid, a raymarched nebula interior, and flowing hue bands — move it between Idle, Thinking, Searching, and Speaking presets; bind colours, refractive index, flow speed, distortion, and outer glow to live form controls; and copy a usable R3F snippet for the current values.",
   viewInteraction: {
     mode: "orbit",
     orientationTargets: ["view.orbit"],
@@ -209,7 +209,7 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     kind: "control",
     optionCoverage: "each-visible-item",
     target: "orb.style",
-    userAction: "Choose each style in turn: Glass, Bubble, Crystal, Amber, Frost, Obsidian, Metal, Ferrofluid, Nebula, and Plasma.",
+    userAction: "Choose each style in turn: Glass, Bubble, Crystal, Amber, Frost, Obsidian, Metal, Ferrofluid, Nebula, Aurora, and Plasma.",
   },
   {
     automated: true,

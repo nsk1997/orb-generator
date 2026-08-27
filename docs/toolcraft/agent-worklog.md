@@ -250,8 +250,29 @@ Classifier output establishes complaint authority only and never path localizati
 - Checks actually run: `npm run typecheck`, `npx vitest run src`, `node scripts/check-toolcraft-integrity.mjs`, `npm run ai:check`, `npm run docs:check`, and the browser captures under Evidence.
 - Risks: Risk: Amber's absorption depends on `backsideThickness` adding to `thickness` in the exponent, which is Drei's behaviour rather than a documented contract; a Drei upgrade could change how gold it is. Risk: Amber rests at a flow speed of 0.22 because resin is viscous, so its measured motion is the lowest of any style at 1.03 — alive, but closer to the noise floor than the rest. Risk: Obsidian is nearly the value of the default background, so it can read as a silhouette until the user changes one or the other.
 
+### Iteration 11 — Aurora, the flowing-hue interior
+
+- Request: "can we add something like siri?" then "yeah" to the proposal, which recommended the name Aurora over Siri for a publicly deployed tool.
+- Task type: Renderer technique, style data, acceptance.
+- User-visible result: **Aurora**, a style whose interior is flowing bands of colour rather than an emissive core or a volume — the assistant-orb look. The bands respond to state: Search drives a bright scan across them and Speak beats them.
+- Source/reference checked: The look is built from layered conic gradients in the CSS and React implementations of it that circulate — SmoothUI's Siri Orb, ElevenLabs' Orb, VoiceOrbs — and the recurring property across all of them is multi-hue flow plus a wide soft glow. Nothing was copied; the ramp here is derived from the product's own two colour controls.
+- Reference inputs: None.
+- Docs/contracts read: `AGENTS.md`.
+- Contract rules applied: `renderer-technique-inventory`, `controls-product-coverage`, `acceptance-product-observable`.
+- View interaction intent: Unchanged; orbit with `view.orbit`.
+- Interaction ownership: Unchanged.
+- Decision: This look needs four or more hues and the product has exactly two colour controls, which Iteration 7 established belong to the style and then to the user. Hardcoding a palette would have made both pickers dead on this one style. Instead the ramp has four stops: the two middle ones are exactly the colours the user picked, and the outer two are those colours hue-rotated past themselves by a style-owned `spread`. Both pickers keep working and the style is still multi-hue. Rotation is Rodrigues about the grey axis rather than a conversion to HSV and back, which costs less and clips the same colours. The band coordinate uses an integer band count so a full turn of the azimuth lands on a whole number of ramps and leaves no seam, and the same looping noise the surface uses warps the bands — gently, because at higher warp they stop being bands and become blotches.
+- A real bug was found while proving the copied snippet: the render loop drives `orbCalm`, `orbPulse`, `orbRidge` and `orbSwirl` onto the interior but never `orbSweep`, so the scan this style reads from it would have been dead in the app while the snippet drew it. Sweep is now wired to the interior only where the interior draws with it, which is the aurora and nothing else; on the emissive core and the volume it would ridge the interior geometry for no visible gain. The snippet was matched to the same rule.
+- Alternatives rejected: Naming it Siri, which is a trademark on a publicly deployed tool. Painting the bands on the shell rather than the interior, which the transmission material has no room for. Adding colour controls for the extra stops, which would have put four pickers on one style and none on the others.
+- State/output mapping: `interior: { kind: "aurora", spread }` selects the fragment stage and the hue overshoot. The interior takes `orbAuroraTint` from the primary colour and `orbCoreColor` from the core colour, both damped by the existing colour response. Copy Code emits the ramp and both colours.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Checks actually run: `npm run typecheck`, `npx vitest run src`, `node scripts/check-toolcraft-integrity.mjs`, `npm run ai:check`, `npm run docs:check`, and the browser captures under Evidence.
+- Risks: Risk: the copied snippet renders the bands noticeably hotter than the app does, so its hues wash toward white where the app holds them; this is the standing app-versus-snippet exposure divergence rather than anything specific to this style, and it was not chased here. Risk: the hue rotation runs on whatever two colours the user picks, so an unusual pair can rotate the outer stops somewhere unflattering; the spread was narrowed to 0.6 radians partly for this reason.
+
 ## Evidence
 
+- Aurora proof: captured at `.toolcraft/browser-artifacts/preset-aurora.png` with flowing blue, magenta and orange bands inside a glass shell, and at `preset-aurora-search.png`, where the scan reads as a bright band across the middle that is absent at rest. Runtime switch measurements with the real Style select: Glass at mount 2.86, Aurora 3.32, Nebula 1.59, Glass 2.52, no errors. The copied Aurora snippet was rendered in the standalone snippet app with no errors, and `src/app/orb/orb-code-snippet.test.ts` requires it to carry the ramp, the spread, and the primary-colour tint, since a snippet that dropped the tint would compile and draw grey bands.
 - Obsidian and Amber proof: captured with their own resolved palettes at `.toolcraft/browser-artifacts/preset-obsidian.png` and `preset-amber.png`. Obsidian reads as a dark polished stone carrying soft coloured reflections of the studio; Amber reads as warm translucent resin, gold at the rim and deeper toward the middle. Runtime switch measurements with the real Style select: Glass at mount 2.80, Obsidian 1.54, Amber 1.03, Ferrofluid 7.96, no errors, against about 0.01 for a frozen frame.
 - Opacity rule proof: `src/app/orb/orb-styles.test.ts` now requires an opaque style to carry metalness or clearcoat rather than metalness specifically, and requires any style with metalness to be opaque. The first Obsidian attempt failed this suite on its declared surface, which is how the transmissive-and-grey version was caught rather than shipped.
 - Style proof for this iteration: all three new styles captured with their own resolved palettes at `.toolcraft/browser-artifacts/preset-crystal.png`, `preset-ferrofluid.png`, and `preset-nebula.png`, and the five existing styles recaptured after the `tintLift` repair. Crystal shows facet-bounded dispersion, Ferrofluid shows cones with an iridescent sheen over a dark body, and Nebula shows a filamentary volume with voids rather than a bright centre.
@@ -273,6 +294,7 @@ Classifier output establishes complaint authority only and never path localizati
 ## Verification
 
 - `npm run typecheck` passes.
+- `src/app/orb/orb-style-presets.ts` was split again as it crossed the module line budget: `orb-style-contract.ts` now holds the style types and order, and the presets file holds the data.
 - `npm run ai:check` and `npm run docs:check` pass; `orb-styles.ts` was split into `orb-style-presets.ts` (the style data) and `orb-styles.ts` (states, ranges, and preset resolution) to stay inside the module line budget.
 - `npx vitest run src` passes.
 - `node scripts/check-toolcraft-integrity.mjs` passes.

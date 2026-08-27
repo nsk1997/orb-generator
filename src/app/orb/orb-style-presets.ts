@@ -1,121 +1,20 @@
-import type { OrbParams } from "./orb-params";
+import {
+  orbStyleOrder,
+  type OrbStyle,
+  type OrbStyleId,
+} from "./orb-style-contract";
 
-export type OrbStyleId =
-  | "glass"
-  | "bubble"
-  | "crystal"
-  | "amber"
-  | "frost"
-  | "obsidian"
-  | "metal"
-  | "ferrofluid"
-  | "nebula"
-  | "plasma";
-
-/**
- * Everything a style owns that has no slider. These reach the material and the
- * studio directly, which is why the style has to be a stored value rather than
- * a one-shot preset.
- */
-export type OrbMaterialConfig = {
-  /**
-   * How far the transmission sampler blurs what it sees through the body. A
-   * style whose interior is the subject cannot afford much of it; a style
-   * whose surface is the subject wants it.
-   */
-  anisotropicBlur: number;
-  attenuationDistance: number;
-  backsideThickness: number;
-  clearcoat: number;
-  clearcoatRoughness: number;
-  envMapIntensity: number;
-  iridescence: number;
-  iridescenceIOR: number;
-  iridescenceThicknessRange: [number, number];
-  metalness: number;
-  samples: number;
-  thickness: number;
-  /** 0 skips Drei's backside and buffer passes entirely. */
-  transmission: number;
-};
-
-export type OrbStudioConfig = {
-  cardIntensityScale: number;
-  domeBottom: string;
-  domeHorizon: string;
-  domeTop: string;
-};
-
-/**
- * Bloom is per style rather than a tenth slider: a mirror should barely bleed
- * and a plasma should bleed a lot, and the existing Glow control already
- * scales it so the user still has reach.
- */
-export type OrbBloomConfig = {
-  intensity: number;
-  radius: number;
-  threshold: number;
-};
-
-/**
- * Whether the body transmits light at all. This is the cost claim as much as
- * the look: Drei skips its backside and buffer passes only at transmission 0,
- * so an opaque style is genuinely cheaper than a transmissive one.
- */
-export type OrbSurfaceKind = "opaque" | "transmissive";
-
-/**
- * What lives inside the shell. `core` is the emissive heart every style
- * shipped with; `nebula` raymarches a volume through the interior instead, so
- * the orb has depth rather than a bright centre.
- */
-export type OrbInterior =
-  | Readonly<{ kind: "core" }>
-  | Readonly<{ density: number; kind: "nebula" }>;
-
-export type OrbShellConfig = {
-  /**
-   * Icosahedron subdivision. High detail is what lets displacement read as a
-   * smooth fluid; low detail is what makes a faceted style faceted, so this
-   * belongs to the style rather than being one number for the whole app.
-   */
-  detail: number;
-  /** Flat shading reads the facets off the geometry instead of smoothing them. */
-  flatShading: boolean;
-};
-
-export type OrbStyle = {
-  /** Resting parameter set. States are deltas on top of this. */
-  base: OrbParams;
-  bloom: OrbBloomConfig;
-  coreIntensityScale: number;
-  coreScale: number;
-  haloSize: number;
-  id: OrbStyleId;
-  interior: OrbInterior;
-  label: string;
-  material: OrbMaterialConfig;
-  /** 0 is the fluid swell every style shipped with; 1 spikes it into cones. */
-  ridge: number;
-  shell: OrbShellConfig;
-  studio: OrbStudioConfig;
-  surface: OrbSurfaceKind;
-  /** How far the transmitted tint is lifted toward white before it is used. */
-  tintLift: number;
-};
-
-export const orbStyleOrder: readonly OrbStyleId[] = [
-  "glass",
-  "bubble",
-  "crystal",
-  "amber",
-  "frost",
-  "obsidian",
-  "metal",
-  "ferrofluid",
-  "nebula",
-  "plasma",
-];
+export type {
+  OrbBloomConfig,
+  OrbInterior,
+  OrbMaterialConfig,
+  OrbShellConfig,
+  OrbStudioConfig,
+  OrbStyle,
+  OrbStyleId,
+  OrbSurfaceKind,
+} from "./orb-style-contract";
+export { orbStyleOrder } from "./orb-style-contract";
 
 export const orbStyles: Record<OrbStyleId, OrbStyle> = {
   glass: {
@@ -586,6 +485,57 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
     // Nearly white, because this shell's job is to be looked through: the
     // colour of a volume style belongs to the volume, not to the glass.
     tintLift: 0.85,
+  },
+  aurora: {
+    base: {
+      chromaticAberration: 0.14,
+      coreColor: "#FF5FA2",
+      distortion: 0.2,
+      flowSpeed: 0.6,
+      // The glow is half of what makes this look what it is, so it starts
+      // high and spreads wide.
+      glowIntensity: 1.15,
+      glowSpread: 2.6,
+      ior: 1.22,
+      primaryColor: "#4C7DFF",
+      roughness: 0.04,
+    },
+    bloom: { intensity: 1.15, radius: 0.9, threshold: 0.62 },
+    coreIntensityScale: 1,
+    // Fills the ball without letting Think's core agitation push the bands
+    // out through the shell.
+    coreScale: 0.76,
+    haloSize: 4.8,
+    id: "aurora",
+    interior: { kind: "aurora", spread: 0.6 },
+    label: "Aurora",
+    material: {
+      anisotropicBlur: 0.15,
+      attenuationDistance: 4.5,
+      backsideThickness: 0.1,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.05,
+      envMapIntensity: 0.5,
+      iridescence: 0.25,
+      iridescenceIOR: 1.4,
+      iridescenceThicknessRange: [140, 600],
+      metalness: 0,
+      samples: 8,
+      thickness: 0.3,
+      transmission: 1,
+    },
+    ridge: 0,
+    shell: { detail: 24, flatShading: false },
+    studio: {
+      // Dim, so the bands are the brightest thing in frame.
+      cardIntensityScale: 0.35,
+      domeBottom: "#0A0818",
+      domeHorizon: "#141030",
+      domeTop: "#241C4E",
+    },
+    surface: "transmissive",
+    // Nearly clear: the colour belongs to the bands, not to the glass.
+    tintLift: 0.8,
   },
   plasma: {
     base: {

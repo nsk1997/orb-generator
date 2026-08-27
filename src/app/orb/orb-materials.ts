@@ -96,6 +96,8 @@ export type OrbGlowMaterial = ShaderMaterial & {
 
 export type OrbCoreMaterial = ShaderMaterial & {
   uniforms: OrbDisplacementUniforms & {
+    /** Present only on the aurora interior, which ramps between both colours. */
+    orbAuroraTint?: OrbUniform<Color>;
     orbCoreColor: OrbUniform<Color>;
     orbCoreIntensity: OrbUniform<number>;
   };
@@ -233,6 +235,115 @@ export function createOrbNebulaMaterial(
       orbCoreColor: { value: new Color("#FF7AE0") },
       orbCoreIntensity: { value: 1 },
       orbNebulaDensity: { value: density },
+    },
+    vertexShader: orbLayerVertexShader,
+  }) as OrbCoreMaterial;
+}
+
+export const orbAuroraFragmentShader = /* glsl */ `
+${orbNoiseChunk}
+${orbDisplacementChunk}
+
+uniform vec3 orbAuroraTint;
+uniform vec3 orbCoreColor;
+uniform float orbAuroraSpread;
+uniform float orbCoreIntensity;
+
+varying vec3 vOrbNormal;
+varying vec3 vOrbView;
+varying vec3 vOrbWorld;
+
+/**
+ * Rodrigues rotation about the grey axis, which is a true hue rotation and
+ * costs a dot, a cross and two trig calls. Converting to HSV and back would
+ * cost more and clip the same colours.
+ */
+vec3 orbHueRotate(vec3 colour, float angle) {
+  const vec3 axis = vec3(0.5773502691896258);
+  float c = cos(angle);
+
+  return colour * c
+    + cross(axis, colour) * sin(angle)
+    + axis * dot(axis, colour) * (1.0 - c);
+}
+
+/**
+ * A cyclic four-stop ramp. The two middle stops are exactly the colours the
+ * user picked; the outer two are those colours rotated past themselves, which
+ * is where the extra hues come from. Cyclic so the band pattern has no seam.
+ */
+vec3 orbAuroraRamp(float t) {
+  vec3 a = orbHueRotate(orbAuroraTint, -orbAuroraSpread);
+  vec3 b = orbAuroraTint;
+  vec3 c = orbCoreColor;
+  vec3 d = orbHueRotate(orbCoreColor, orbAuroraSpread);
+
+  float s = fract(t) * 4.0;
+  vec3 colour = mix(a, b, smoothstep(0.0, 1.0, clamp(s, 0.0, 1.0)));
+  colour = mix(colour, mix(b, c, smoothstep(0.0, 1.0, clamp(s - 1.0, 0.0, 1.0))), step(1.0, s));
+  colour = mix(colour, mix(c, d, smoothstep(0.0, 1.0, clamp(s - 2.0, 0.0, 1.0))), step(2.0, s));
+  colour = mix(colour, mix(d, a, smoothstep(0.0, 1.0, clamp(s - 3.0, 0.0, 1.0))), step(3.0, s));
+
+  return colour;
+}
+
+void main() {
+  vec3 unit = normalize(vOrbWorld);
+  float phase = fract(orbFlow / ORB_LOOP_SPAN);
+  float angle = phase * ORB_TAU;
+  float azimuth = atan(unit.z, unit.x);
+
+  // Warped, not striped, but only gently: at higher warp the bands stop being
+  // bands and become blotches. The band count is an integer so a full turn of
+  // the azimuth still lands on a whole number of ramps and leaves no seam.
+  const float ORB_AURORA_BANDS = 2.0;
+  float warp = orbLoopFbm(unit * 1.1, vec3(2.2, -1.4, 1.8), phase);
+  float t = (azimuth / ORB_TAU + unit.y * 0.55 + warp * 0.18 + phase)
+    * ORB_AURORA_BANDS;
+
+  // Brightest where the interior faces the camera, so the ball has a form
+  // instead of reading as a flat disc of colour.
+  float facing = clamp(abs(dot(normalize(vOrbNormal), normalize(vOrbView))), 0.0, 1.0);
+  vec3 colour = orbAuroraRamp(t) * mix(0.15, 1.0, pow(facing, 1.8));
+
+  // Additive compositing through a lit shell walks every band toward white,
+  // so the ramp is pushed away from its own luminance to hold its hue.
+  float luma = dot(colour, vec3(0.299, 0.587, 0.114));
+  colour = max(mix(vec3(luma), colour, 1.45), vec3(0.0));
+
+  // The state reaches the bands through the same weights that drive the
+  // surface, so Search sweeps and Speak pulses without new controls.
+  float scan = pow(max(cos(azimuth - angle * 2.0), 0.0), 10.0);
+  colour += colour * scan * orbSweep * 1.2;
+  float beat = mix(1.0, 0.55 + 0.9 * orbBeat(angle), orbPulse);
+
+  gl_FragColor = vec4(colour * orbCoreIntensity * beat, 1.0);
+
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/**
+ * Flowing hue bands rendered on the interior shell. Same uniforms as the other
+ * interiors plus the second colour, so the render loop drives it unchanged.
+ */
+export function createOrbAuroraMaterial(
+  scale: number,
+  spread: number,
+): OrbCoreMaterial {
+  return new ShaderMaterial({
+    blending: AdditiveBlending,
+    depthWrite: false,
+    fragmentShader: orbAuroraFragmentShader,
+    side: FrontSide,
+    transparent: true,
+    uniforms: {
+      ...createOrbDisplacementUniforms(scale),
+      orbAuroraSpread: { value: spread },
+      orbAuroraTint: { value: new Color("#4C7DFF") },
+      orbCoreColor: { value: new Color("#FF5FA2") },
+      orbCoreIntensity: { value: 1 },
     },
     vertexShader: orbLayerVertexShader,
   }) as OrbCoreMaterial;

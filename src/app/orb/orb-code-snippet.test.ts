@@ -63,6 +63,17 @@ describe("copy code snippet", () => {
     }
   });
 
+  it("emits the aurora ramp and both of its colours", () => {
+    // The ramp reads the primary colour as well as the core one, so a snippet
+    // that forgot the tint uniform would compile and render grey bands.
+    const aurora = snippetFor("aurora");
+    expect(aurora).toContain("orbAuroraRamp");
+    expect(aurora).toContain("orbAuroraSpread: { value:");
+    expect(aurora).toContain("orbAuroraTint: { value: new THREE.Color(ORB.primaryColor) }");
+
+    expect(snippetFor("glass")).not.toContain("orbAuroraRamp");
+  });
+
   it("emits the interior the selected style actually renders", () => {
     // The two interiors are different fragment stages, not a parameter, so a
     // copied volume style that pasted the emissive core would be a different

@@ -16,6 +16,7 @@ import {
 } from "three";
 
 import {
+  createOrbAuroraMaterial,
   createOrbCoreMaterial,
   createOrbDomeMaterial,
   createOrbGlowMaterial,
@@ -118,13 +119,17 @@ export function OrbScene({
   // Both interiors expose the same uniforms, so the render loop below drives
   // whichever one is mounted without branching.
   const { interior } = style;
-  const coreMaterial = React.useMemo(
-    () =>
-      interior.kind === "nebula"
-        ? createOrbNebulaMaterial(style.coreScale, interior.density)
-        : createOrbCoreMaterial(style.coreScale),
-    [interior, style.coreScale],
-  );
+  const coreMaterial = React.useMemo(() => {
+    if (interior.kind === "nebula") {
+      return createOrbNebulaMaterial(style.coreScale, interior.density);
+    }
+
+    if (interior.kind === "aurora") {
+      return createOrbAuroraMaterial(style.coreScale, interior.spread);
+    }
+
+    return createOrbCoreMaterial(style.coreScale);
+  }, [interior, style.coreScale]);
 
   const bodyRef = React.useRef<Mesh | null>(null);
   const haloRef = React.useRef<Mesh | null>(null);
@@ -319,6 +324,12 @@ export function OrbScene({
     coreMaterial.uniforms.orbPulse.value = state.pulse;
     coreMaterial.uniforms.orbRidge.value = state.ridge;
     coreMaterial.uniforms.orbSwirl.value = state.swirl;
+    // Sweep reaches the interior only where the interior draws with it. The
+    // aurora bands use it for their scan; on the emissive core and the volume
+    // it would ridge the interior geometry for no visible gain, which is why
+    // it was never wired through before.
+    coreMaterial.uniforms.orbSweep.value =
+      interior.kind === "aurora" ? state.sweep : 0;
     // The core can churn inside a still shell, which is what Think looks like.
     coreMaterial.uniforms.orbDistortion.value =
       shellDistortion * 0.55 * state.coreAgitation;
@@ -327,6 +338,9 @@ export function OrbScene({
     // scale and lower distortion.
     coreMaterial.uniforms.orbFlow.value = state.flowPhase;
     coreMaterial.uniforms.orbCoreColor.value.copy(shownCore);
+    // Only the aurora interior ramps between both colours; the others take
+    // the core colour alone.
+    coreMaterial.uniforms.orbAuroraTint?.value.copy(shownPrimary);
     coreMaterial.uniforms.orbCoreIntensity.value =
       (0.5 + state.glowIntensity * 0.28) * style.coreIntensityScale;
 

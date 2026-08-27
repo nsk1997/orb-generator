@@ -1,4 +1,7 @@
-import { orbNebulaFragmentShader } from "./orb-materials";
+import {
+  orbAuroraFragmentShader,
+  orbNebulaFragmentShader,
+} from "./orb-materials";
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 import type { OrbStateForm, OrbStyle } from "./orb-styles";
@@ -58,12 +61,18 @@ export function createOrbCodeSnippet(
   // A volume interior is a whole fragment stage, not a parameter, so the two
   // interiors are emitted as alternatives rather than as one shader with a
   // dead branch in it.
-  const interiorFragment =
-    interior.kind === "nebula" ? orbNebulaFragmentShader : orbCoreFragmentSource;
+  const interiorFragment = {
+    aurora: orbAuroraFragmentShader,
+    core: orbCoreFragmentSource,
+    nebula: orbNebulaFragmentShader,
+  }[interior.kind];
   const interiorUniforms =
     interior.kind === "nebula"
       ? `\n            orbNebulaDensity: { value: ${interior.density} },`
-      : "";
+      : interior.kind === "aurora"
+        ? `\n            orbAuroraSpread: { value: ${interior.spread} },` +
+          `\n            orbAuroraTint: { value: new THREE.Color(ORB.primaryColor) },`
+        : "";
 
   return `// Orb generated with the Orb Generator.
 // npm i three @react-three/fiber @react-three/drei @react-three/postprocessing postprocessing
@@ -192,7 +201,7 @@ const ORB_INTERIOR_FRAGMENT = \`
 ${interiorFragment.trim()}
 \`;
 
-function useDisplacementUniforms(scale, distortion) {
+function useDisplacementUniforms(scale, distortion, sweep) {
   return useMemo(
     () => ({
       // Form weights come from the state that was active when this was copied.
@@ -202,16 +211,17 @@ function useDisplacementUniforms(scale, distortion) {
       orbPulse: { value: ORB.pulse },
       orbRidge: { value: ORB.ridge },
       orbScale: { value: scale },
-      orbSweep: { value: ORB.sweep },
+      orbSweep: { value: sweep },
       orbSwirl: { value: ORB.swirl },
     }),
-    [distortion, scale],
+    [distortion, scale, sweep],
   );
 }
 
 function Orb() {
-  const bodyUniforms = useDisplacementUniforms(1, ORB.distortion);
-  const coreUniforms = useDisplacementUniforms(${style.coreScale}, ORB.distortion * 0.55 * ${form.coreAgitation});
+  const bodyUniforms = useDisplacementUniforms(1, ORB.distortion, ORB.sweep);
+  // Sweep reaches the interior only where the interior draws with it.
+  const coreUniforms = useDisplacementUniforms(${style.coreScale}, ORB.distortion * 0.55 * ${form.coreAgitation}, ${interior.kind === "aurora" ? "ORB.sweep" : "0"});
   const phase = useRef(0);
   const halo = useRef(null);
 
