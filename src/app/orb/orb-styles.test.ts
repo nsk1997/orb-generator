@@ -105,22 +105,25 @@ describe("orb style and state composition", () => {
           style.material.transmission,
           `${styleId} declares an opaque surface but still transmits`,
         ).toBe(0);
-        // A dielectric that transmits nothing is a painted ball. Only a metal
-        // earns its living from reflection alone.
+        // An opaque body has only its reflection to be seen by, so it needs
+        // something to reflect with: metal, or a polished coat over a dark
+        // dielectric. Requiring metal specifically was too strong — a black
+        // glossy stone is the counterexample.
         expect(
-          style.material.metalness,
-          `${styleId} is opaque but has nothing to reflect with`,
+          Math.max(style.material.metalness, style.material.clearcoat),
+          `${styleId} is opaque but has nothing to be seen by`,
         ).toBeGreaterThan(0);
         continue;
       }
+
+      // Metalness closes transmission in the physical material, so a metal
+      // style can only ever be an opaque one.
+      expect(style.material.metalness).toBe(0);
 
       expect(
         style.material.transmission,
         `${styleId} declares a transmissive surface but transmits nothing`,
       ).toBeGreaterThan(0);
-      // Metalness closes transmission in the physical material, so the two
-      // can never both be on.
-      expect(style.material.metalness).toBe(0);
     }
   });
 

@@ -4,7 +4,9 @@ export type OrbStyleId =
   | "glass"
   | "bubble"
   | "crystal"
+  | "amber"
   | "frost"
+  | "obsidian"
   | "metal"
   | "ferrofluid"
   | "nebula"
@@ -106,7 +108,9 @@ export const orbStyleOrder: readonly OrbStyleId[] = [
   "glass",
   "bubble",
   "crystal",
+  "amber",
   "frost",
+  "obsidian",
   "metal",
   "ferrofluid",
   "nebula",
@@ -261,6 +265,63 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
     // A cut stone keeps its colour; lifting it toward white makes it milky.
     tintLift: 0.35,
   },
+  amber: {
+    base: {
+      chromaticAberration: 0.18,
+      coreColor: "#FFD9A0",
+      // Resin is viscous. A fast amber reads as orange juice.
+      distortion: 0.14,
+      flowSpeed: 0.22,
+      glowIntensity: 0.55,
+      glowSpread: 3.4,
+      ior: 1.55,
+      primaryColor: "#F0C070",
+      roughness: 0.05,
+    },
+    bloom: { intensity: 0.36, radius: 0.6, threshold: 0.8 },
+    coreIntensityScale: 0.7,
+    coreScale: 0.34,
+    haloSize: 4.3,
+    id: "amber",
+    interior: { kind: "core" },
+    label: "Amber",
+    material: {
+      anisotropicBlur: 0.35,
+      // The whole style is here. Every other transmissive style crosses in
+      // 2.2 units or more, so its colour comes from its surface; this one
+      // absorbs within a single unit, so its colour comes from how far the
+      // light had to travel through the body. Shorter than this and the
+      // absorption eats the green channel and the gold turns to wine.
+      attenuationDistance: 0.95,
+      // Light crosses the backside pass and then the body, so this adds to
+      // `thickness` in the absorption exponent. At 0.8 the gold came out
+      // as wine.
+      backsideThickness: 0.25,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+      envMapIntensity: 2.1,
+      iridescence: 0,
+      iridescenceIOR: 1.3,
+      iridescenceThicknessRange: [100, 400],
+      metalness: 0,
+      samples: 10,
+      // Deep, so there is a thick middle for the attenuation to act over.
+      thickness: 1.6,
+      transmission: 1,
+    },
+    ridge: 0,
+    shell: { detail: 24, flatShading: false },
+    studio: {
+      // A warm room. Absorption can only subtract, so the light going in has
+      // to carry what the body is meant to keep.
+      cardIntensityScale: 0.85,
+      domeBottom: "#241708",
+      domeHorizon: "#3E2A12",
+      domeTop: "#B8905A",
+    },
+    surface: "transmissive",
+    tintLift: 0.25,
+  },
   frost: {
     base: {
       chromaticAberration: 0.1,
@@ -309,6 +370,64 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
     },
     surface: "transmissive",
     tintLift: 0.7,
+  },
+  obsidian: {
+    base: {
+      chromaticAberration: 0.06,
+      coreColor: "#FF7A3C",
+      // Volcanic glass is heavy and slow, and a black body only shows motion
+      // through the highlights sliding across it.
+      distortion: 0.22,
+      flowSpeed: 0.35,
+      glowIntensity: 0.4,
+      glowSpread: 4.2,
+      ior: 1.48,
+      primaryColor: "#14101C",
+      roughness: 0.06,
+    },
+    bloom: { intensity: 0.3, radius: 0.6, threshold: 0.78 },
+    coreIntensityScale: 0.6,
+    coreScale: 0.4,
+    haloSize: 4,
+    id: "obsidian",
+    interior: { kind: "core" },
+    label: "Obsidian",
+    material: {
+      anisotropicBlur: 0.4,
+      // Unused at transmission 0, but kept honest: nothing crosses this body.
+      attenuationDistance: 0.28,
+      backsideThickness: 0,
+      // A polished stone is a coat over a dark body. Full clearcoat reflects
+      // so much white that the stone goes grey, so this is the level that
+      // still reads as polish rather than as paint.
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.06,
+      envMapIntensity: 1,
+      iridescence: 0,
+      iridescenceIOR: 1.3,
+      iridescenceThicknessRange: [100, 400],
+      metalness: 0,
+      samples: 8,
+      thickness: 0,
+      // None. Drei's transmission path samples the environment behind the
+      // body, and at any level above zero the dome showed straight through
+      // and turned the stone grey. Opaque is also what obsidian is, and it
+      // skips both of Drei's extra passes.
+      transmission: 0,
+    },
+    ridge: 0,
+    shell: { detail: 24, flatShading: false },
+    studio: {
+      // Very dim. A polished black stone is mostly the room it reflects, so
+      // a normal studio does not light it — it replaces it with a mirror.
+      cardIntensityScale: 0.5,
+      domeBottom: "#050408",
+      domeHorizon: "#0D0B14",
+      domeTop: "#241E30",
+    },
+    surface: "opaque",
+    // Almost none, or the body goes grey and stops being obsidian.
+    tintLift: 0.08,
   },
   metal: {
     base: {
