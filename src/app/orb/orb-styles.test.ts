@@ -1,3 +1,4 @@
+import gsap from "gsap";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -308,6 +309,70 @@ describe("orb style and state composition", () => {
         { state: "speak", style: "metal" },
       ),
     ).toEqual([]);
+  });
+
+  it("gives every style a motion signature GSAP can actually parse", () => {
+    // An unknown ease name is not an error in GSAP: it silently falls back to
+    // the default curve, so a typo would ship as "this style has no character"
+    // rather than as a crash.
+    for (const styleId of orbStyleOrder) {
+      const { motion } = orbStyles[styleId];
+
+      expect(
+        typeof gsap.parseEase(motion.motionEase),
+        `${styleId} motionEase does not parse`,
+      ).toBe("function");
+      expect(
+        typeof gsap.parseEase(motion.shapeEase),
+        `${styleId} shapeEase does not parse`,
+      ).toBe("function");
+    }
+
+    // Proves the assertion above can fail: a name GSAP does not know returns
+    // undefined rather than a curve.
+    expect(gsap.parseEase("definitely.notAnEase")).toBeUndefined();
+  });
+
+  it("lets the heavy styles take longer than the light ones", () => {
+    // The signature is only worth carrying if it actually separates the
+    // styles; resin and soap film arriving in the same time would not.
+    expect(orbStyles.amber.motion.durationScale).toBeGreaterThan(
+      orbStyles.bubble.motion.durationScale,
+    );
+    expect(orbStyles.nebula.motion.durationScale).toBeGreaterThan(
+      orbStyles.plasma.motion.durationScale,
+    );
+
+    for (const styleId of orbStyleOrder) {
+      // Nothing so fast it reads as a cut, nothing so slow it reads as a wait.
+      expect(orbStyles[styleId].motion.durationScale).toBeGreaterThanOrEqual(0.5);
+      expect(orbStyles[styleId].motion.durationScale).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("keeps overshoot off the styles that have mass", () => {
+    // Stone and resin that spring back read as rubber. The check is on the
+    // resolved curve, not the ease name, so a renamed ease cannot dodge it.
+    const overshoots = (ease: string): boolean => {
+      const curve = gsap.parseEase(ease);
+      return Array.from({ length: 40 }, (_, index) =>
+        curve((index + 1) / 40),
+      ).some((value) => value > 1.0001);
+    };
+
+    for (const styleId of ["amber", "obsidian", "metal", "nebula"] as const) {
+      expect(
+        overshoots(orbStyles[styleId].motion.motionEase),
+        `${styleId} should not spring`,
+      ).toBe(false);
+    }
+
+    for (const styleId of ["bubble", "plasma", "ferrofluid"] as const) {
+      expect(
+        overshoots(orbStyles[styleId].motion.motionEase),
+        `${styleId} should spring`,
+      ).toBe(true);
+    }
   });
 
   it("labels every state within the segmented control budget", () => {

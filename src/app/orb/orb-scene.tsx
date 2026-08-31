@@ -286,7 +286,10 @@ export function OrbScene({
         } satisfies OrbTransitionValues,
         // Only a state change earns the envelope. Switching preset moves the
         // ridge weight alone and must not flash.
-        { withTransient: stateChanged },
+        //
+        // The signature is the style being moved *to*: switching from Glass to
+        // Amber should already feel like Amber arriving, not like Glass leaving.
+        { signature: style.motion, withTransient: stateChanged },
       );
       transitionTimeRef.current = 0;
     }
