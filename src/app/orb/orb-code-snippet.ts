@@ -587,7 +587,7 @@ function Orb({ bloom, state }) {
           metalness={${material.metalness}}
           ior={ORB_INITIAL.ior}
           ref={attachBody}
-          resolution={512}
+          resolution={1024}
           roughness={ORB_INITIAL.roughness}
           samples={${material.samples}}
           temporalDistortion={0.02}
