@@ -13,7 +13,6 @@ import {
   readOrbViewDistance,
 } from "./orb/orb-params";
 import {
-  orbStateDeltas,
   orbStyles,
   readOrbStateId,
   readOrbStyleId,
@@ -52,7 +51,7 @@ export const appComposition: ToolcraftAppComposition = {
 
     const snippet = createOrbCodeSnippet(readOrbParams(state.values), {
       backgroundColor: readOrbSceneBackground(state.values),
-      form: orbStateDeltas[readOrbStateId(state.values[orbTargets.state])].form,
+      stateId: readOrbStateId(state.values[orbTargets.state]),
       style: orbStyles[readOrbStyleId(state.values[orbTargets.style])],
       viewDistance: readOrbViewDistance(state.values),
     });
