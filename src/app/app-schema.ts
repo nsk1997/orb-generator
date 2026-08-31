@@ -256,9 +256,11 @@ export const appSchema = defineToolcraft({
             distance: {
               applicability: always,
               defaultValue: orbViewDistanceDefault,
+              description:
+                "Below about 4.5 the orb outgrows the frame and its silhouette is cut off, so the closest framings are the ones the shell still fits in.",
               label: "Camera distance",
               max: 16,
-              min: 3.5,
+              min: 4.5,
               orderRole: "spatial",
               performanceReason:
                 "Camera framing changes matrices only; no pass is rebuilt.",
