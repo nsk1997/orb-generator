@@ -33,6 +33,11 @@ import {
   registerOrbFrameRenderer,
 } from "./orb-export-registry";
 import { orbLoopSpan } from "./orb-shader-chunks";
+import {
+  createOrbTransition,
+  type OrbTransition,
+  type OrbTransitionValues,
+} from "./orb-transition";
 import { orbDefaults, orbViewDistanceDefault, type OrbParams } from "./orb-params";
 import {
   orbStateDeltas,
@@ -74,21 +79,18 @@ type OrbTransmissionMaterial = MeshPhysicalMaterial & {
   time: number;
 };
 
-/** How fast displayed values chase the panel values, per parameter family. */
+/**
+ * How fast displayed values chase the panel values, per parameter family.
+ * These are the values a user is still dragging, where "keep closing the gap"
+ * is the right model. Form weights are not here: a state change is a discrete
+ * event, so `orb-transition` gives it an authored, seekable timeline instead.
+ */
 const responseRates = {
   color: 5,
-  /** Forms morph a touch slower than values, so the change reads as a move. */
-  form: 2.6,
   motion: 3.2,
   surface: 4.5,
   view: 6,
 } as const;
-
-/**
- * A state change fires one short envelope. Light leads and geometry follows,
- * which is what makes the switch feel like an event without a flash.
- */
-const transientRates = { follow: 9, lead: 4.2 } as const;
 
 function useSmoothedColor(hex: string): Color {
   return React.useMemo(() => new Color(hex), [hex]);
@@ -163,6 +165,12 @@ export function OrbScene({
     transientLead: 0,
   });
   const lastStateRef = React.useRef<OrbStateId>("idle");
+  // The live playhead into the current transition. Advanced by frame delta
+  // here; because the timeline is seekable, an export could hand it a frame
+  // time from the render schedule instead and get identical pixels.
+  const transitionRef = React.useRef<OrbTransition | null>(null);
+  const transitionTimeRef = React.useRef(0);
+  const transitionKeyRef = React.useRef("");
   const whitePoint = useSmoothedColor("#FFFFFF");
   const shownPrimary = useSmoothedColor(orbDefaults.primaryColor);
   const shownCore = useSmoothedColor(orbDefaults.coreColor);
@@ -250,36 +258,55 @@ export function OrbScene({
 
     const form = orbStateDeltas[inputs.stateId].form;
 
-    if (lastStateRef.current !== inputs.stateId) {
-      lastStateRef.current = inputs.stateId;
-      state.transientLead = 1;
-    }
-    state.transientLead = MathUtils.damp(
-      state.transientLead,
-      0,
-      transientRates.lead,
-      step,
-    );
-    state.transientFollow = MathUtils.damp(
-      state.transientFollow,
-      state.transientLead,
-      transientRates.follow,
-      step,
-    );
-
     // Ridge belongs to the style, not the state, but it morphs on the same
     // clock: cutting straight to spikes reads as a different object appearing.
-    state.ridge = MathUtils.damp(state.ridge, style.ridge, responseRates.form, step);
-    state.calm = MathUtils.damp(state.calm, form.calm, responseRates.form, step);
-    state.pulse = MathUtils.damp(state.pulse, form.pulse, responseRates.form, step);
-    state.sweep = MathUtils.damp(state.sweep, form.sweep, responseRates.form, step);
-    state.swirl = MathUtils.damp(state.swirl, form.swirl, responseRates.form, step);
-    state.coreAgitation = MathUtils.damp(
-      state.coreAgitation,
-      form.coreAgitation,
-      responseRates.form,
-      step,
-    );
+    // So one key covers both, and either change authors a fresh transition
+    // starting from wherever the previous one had reached.
+    const transitionKey = `${inputs.stateId}:${style.ridge}`;
+    if (transitionKeyRef.current !== transitionKey) {
+      const stateChanged = lastStateRef.current !== inputs.stateId;
+      lastStateRef.current = inputs.stateId;
+      transitionKeyRef.current = transitionKey;
+      transitionRef.current = createOrbTransition(
+        {
+          calm: state.calm,
+          coreAgitation: state.coreAgitation,
+          pulse: state.pulse,
+          ridge: state.ridge,
+          sweep: state.sweep,
+          swirl: state.swirl,
+          transientFollow: state.transientFollow,
+          transientLead: state.transientLead,
+        },
+        {
+          ...form,
+          ridge: style.ridge,
+          transientFollow: 0,
+          transientLead: 0,
+        } satisfies OrbTransitionValues,
+        // Only a state change earns the envelope. Switching preset moves the
+        // ridge weight alone and must not flash.
+        { withTransient: stateChanged },
+      );
+      transitionTimeRef.current = 0;
+    }
+
+    const transition = transitionRef.current;
+    if (transition) {
+      transitionTimeRef.current = Math.min(
+        transitionTimeRef.current + step,
+        transition.durationSeconds,
+      );
+      const sampled = transition.sampleAt(transitionTimeRef.current);
+      state.calm = sampled.calm;
+      state.coreAgitation = sampled.coreAgitation;
+      state.pulse = sampled.pulse;
+      state.ridge = sampled.ridge;
+      state.sweep = sampled.sweep;
+      state.swirl = sampled.swirl;
+      state.transientFollow = sampled.transientFollow;
+      state.transientLead = sampled.transientLead;
+    }
 
     // Integrating speed keeps the surface continuous when speed changes;
     // wrapping to the loop span keeps float precision exact and gives every
