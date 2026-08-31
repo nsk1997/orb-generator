@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   createOrbTransition,
+  orbNeutralMotionSignature,
   orbTransitionDurationSeconds,
   type OrbTransitionValues,
 } from "./orb-transition";
+import { orbStyleOrder, orbStyles } from "./orb-styles";
 import { orbStateDeltas } from "./orb-styles";
 
 const idle: OrbTransitionValues = {
@@ -21,8 +23,8 @@ const search: OrbTransitionValues = {
   transientLead: 0,
 };
 
-function build(withTransient = true) {
-  return createOrbTransition(idle, search, { withTransient });
+function build(withTransient = true, signature = orbNeutralMotionSignature) {
+  return createOrbTransition(idle, search, { signature, withTransient });
 }
 
 const weightKeys = [
@@ -125,5 +127,30 @@ describe("orb transition timeline", () => {
     expect(build().durationSeconds).toBeLessThanOrEqual(
       orbTransitionDurationSeconds,
     );
+  });
+
+  it("scales the whole event by the style's signature, envelope included", () => {
+    // The envelope keeps its own eases but not its own clock: a light peaking
+    // at the same instant in a slow style would read as a separate flash
+    // rather than as the front of the move.
+    const slow = build(true, { ...orbNeutralMotionSignature, durationScale: 2 });
+    const neutral = build();
+
+    expect(slow.durationSeconds).toBeCloseTo(neutral.durationSeconds * 2, 6);
+    expect(slow.sampleAt(0.32).transientLead).toBeCloseTo(
+      neutral.sampleAt(0.16).transientLead,
+      6,
+    );
+  });
+
+  it("gives styles with different signatures different curves", () => {
+    // If every style resolved the same way mid-flight, the signatures would be
+    // decoration rather than behaviour.
+    const midpoints = orbStyleOrder.map((styleId) => {
+      const transition = build(true, orbStyles[styleId].motion);
+      return transition.sampleAt(transition.durationSeconds * 0.5).swirl;
+    });
+
+    expect(new Set(midpoints.map((value) => value.toFixed(4))).size).toBeGreaterThan(4);
   });
 });

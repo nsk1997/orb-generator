@@ -6,6 +6,7 @@ import {
   createOrbSnippetStates,
 } from "./orb-code-snippet";
 import {
+  easeFor,
   orbTransitionEnvelope,
   orbTransitionMorph,
 } from "./orb-transition";
@@ -233,16 +234,26 @@ describe("copy code snippet motion", () => {
     // retunes the app and the snippet keeps the old feel, this catches it.
     const snippet = snippetFor("glass");
 
+    const { motion } = orbStyles.glass;
+
     for (const step of orbTransitionMorph) {
       expect(snippet).toContain(
-        `at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}"`,
+        `at: ${step.atSeconds * motion.durationScale}, duration: ${step.durationSeconds * motion.durationScale}, ease: "${easeFor(step.role, motion)}"`,
       );
     }
     for (const step of orbTransitionEnvelope) {
       expect(snippet).toContain(
-        `at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}", from: ${step.from}, key: "${step.key}", to: ${step.to}`,
+        `at: ${step.atSeconds * motion.durationScale}, duration: ${step.durationSeconds * motion.durationScale}, ease: "${step.ease}"`,
       );
     }
+  });
+
+  it("carries the copied style's motion signature, not a shared default", () => {
+    // A pasted Amber that moves like Glass is the same failure as a pasted
+    // Amber that looks like Glass.
+    expect(snippetFor("plasma")).toContain(`ease: "${orbStyles.plasma.motion.motionEase}"`);
+    expect(snippetFor("amber")).toContain(`ease: "${orbStyles.amber.motion.motionEase}"`);
+    expect(snippetFor("amber")).not.toContain(`ease: "${orbStyles.plasma.motion.motionEase}"`);
   });
 
   it("pins both ends of every emitted tween", () => {

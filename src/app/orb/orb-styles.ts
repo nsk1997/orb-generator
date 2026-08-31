@@ -9,6 +9,7 @@ export type {
   OrbBloomConfig,
   OrbInterior,
   OrbMaterialConfig,
+  OrbMotionSignature,
   OrbShellConfig,
   OrbStudioConfig,
   OrbStyle,

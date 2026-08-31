@@ -13,6 +13,7 @@ import {
   type OrbStyle,
 } from "./orb-styles";
 import {
+  easeFor,
   orbTransitionEnvelope,
   orbTransitionFormKeys,
   orbTransitionMorph,
@@ -189,7 +190,10 @@ const ORB_TRANSITION_MORPH = [
 ${orbTransitionMorph
   .map(
     (step) =>
-      `  { at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}", keys: [${morphKeys[
+      `  { at: ${round(step.atSeconds * style.motion.durationScale, 4)}, duration: ${round(
+        step.durationSeconds * style.motion.durationScale,
+        4,
+      )}, ease: "${easeFor(step.role, style.motion)}", keys: [${morphKeys[
         step.role
       ]
         .map((key) => `"${key}"`)
@@ -204,7 +208,10 @@ const ORB_TRANSITION_ENVELOPE = [
 ${orbTransitionEnvelope
   .map(
     (step) =>
-      `  { at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}", from: ${step.from}, key: "${step.key}", to: ${step.to} },`,
+      `  { at: ${round(step.atSeconds * style.motion.durationScale, 4)}, duration: ${round(
+        step.durationSeconds * style.motion.durationScale,
+        4,
+      )}, ease: "${step.ease}", from: ${step.from}, key: "${step.key}", to: ${step.to} },`,
   )
   .join("\n")}
 ];

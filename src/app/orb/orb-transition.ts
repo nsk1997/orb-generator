@@ -1,6 +1,6 @@
 import gsap from "gsap";
 
-import type { OrbStateForm } from "./orb-styles";
+import type { OrbMotionSignature, OrbStateForm } from "./orb-styles";
 
 /**
  * The set of weights a state change owns. Slider-driven scalars are not here:
@@ -24,7 +24,6 @@ export type OrbTransitionRole = "motion" | "shape";
 export type OrbTransitionMorphStep = Readonly<{
   atSeconds: number;
   durationSeconds: number;
-  ease: string;
   role: OrbTransitionRole;
 }>;
 
@@ -47,10 +46,10 @@ export const orbTransitionDurationSeconds = 0.9;
  * orb moving like the one the user copied it from.
  */
 export const orbTransitionMorph: readonly OrbTransitionMorphStep[] = [
-  { atSeconds: 0, durationSeconds: 0.72, ease: "power2.inOut", role: "shape" },
-  // A little overshoot, because the forms that read as motion should arrive
-  // rather than settle.
-  { atSeconds: 0.08, durationSeconds: 0.78, ease: "back.out(1.2)", role: "motion" },
+  { atSeconds: 0, durationSeconds: 0.72, role: "shape" },
+  // Offset, because the forms that read as motion should arrive after the
+  // shape has committed rather than alongside it.
+  { atSeconds: 0.08, durationSeconds: 0.78, role: "motion" },
 ];
 
 /**
@@ -111,6 +110,8 @@ export type OrbTransition = {
 };
 
 export type OrbTransitionOptions = {
+  /** The moving style's signature. Scales the timings and picks the eases. */
+  signature: OrbMotionSignature;
   /**
    * A state change fires the light-leads-geometry envelope; a style change that
    * only moves the ridge weight must not, or switching preset would flash.
@@ -118,8 +119,22 @@ export type OrbTransitionOptions = {
   withTransient: boolean;
 };
 
+/** The signature every style is read against, and the fallback for tests. */
+export const orbNeutralMotionSignature: OrbMotionSignature = {
+  durationScale: 1,
+  motionEase: "back.out(1.2)",
+  shapeEase: "power2.inOut",
+};
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+export function easeFor(
+  role: OrbTransitionRole,
+  signature: OrbMotionSignature,
+): string {
+  return role === "motion" ? signature.motionEase : signature.shapeEase;
 }
 
 function pick(
@@ -146,6 +161,8 @@ export function createOrbTransition(
   const values: OrbTransitionValues = { ...from };
   const timeline = gsap.timeline({ paused: true });
 
+  const { durationScale } = options.signature;
+
   orbTransitionMorph.forEach((step, index) => {
     const keys = orbTransitionFormKeys[step.role];
 
@@ -154,28 +171,32 @@ export function createOrbTransition(
       pick(from, keys),
       {
         ...pick(to, keys),
-        duration: step.durationSeconds,
-        ease: step.ease,
+        duration: step.durationSeconds * durationScale,
+        ease: easeFor(step.role, options.signature),
         // The first tween may render at build time; every later one must not,
         // or it would stamp its start value over the object before any seek.
         immediateRender: index === 0,
       },
-      step.atSeconds,
+      step.atSeconds * durationScale,
     );
   });
 
   if (options.withTransient) {
+    // The envelope keeps its own eases across every style. Light leading
+    // geometry is how a state change reads as an event at all; it is not a
+    // trait one style should have more of than another. Only its clock scales,
+    // so it stays inside the morph it belongs to.
     for (const step of orbTransitionEnvelope) {
       timeline.fromTo(
         values,
         { [step.key]: step.from },
         {
           [step.key]: step.to,
-          duration: step.durationSeconds,
+          duration: step.durationSeconds * durationScale,
           ease: step.ease,
           immediateRender: false,
         },
-        step.atSeconds,
+        step.atSeconds * durationScale,
       );
     }
   }

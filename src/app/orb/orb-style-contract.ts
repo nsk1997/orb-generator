@@ -81,6 +81,26 @@ export type OrbInterior =
    */
   | Readonly<{ kind: "aurora"; spread: number }>;
 
+/**
+ * How a style moves, as distinct from how it looks.
+ *
+ * Bloom is already per style on the reasoning that a mirror should barely
+ * bleed and a plasma should bleed a lot. The same argument applies to motion:
+ * a soap film and a block of resin should not arrive at a new state on the
+ * same curve, and a single damp rate has no vocabulary for saying so.
+ */
+export type OrbMotionSignature = {
+  /** Multiplies every authored time. A resin is slower than a soap film. */
+  durationScale: number;
+  /**
+   * How the forms that read as motion arrive. This is where the character
+   * lives: overshoot for anything light or energetic, none for anything heavy.
+   */
+  motionEase: string;
+  /** How the shape morph settles. Steadier than the motion ease, by design. */
+  shapeEase: string;
+};
+
 export type OrbShellConfig = {
   /**
    * Icosahedron subdivision. High detail is what lets displacement read as a
@@ -103,6 +123,7 @@ export type OrbStyle = {
   interior: OrbInterior;
   label: string;
   material: OrbMaterialConfig;
+  motion: OrbMotionSignature;
   /** 0 is the fluid swell every style shipped with; 1 spikes it into cones. */
   ridge: number;
   shell: OrbShellConfig;

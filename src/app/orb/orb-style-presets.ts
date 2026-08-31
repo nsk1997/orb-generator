@@ -8,6 +8,7 @@ export type {
   OrbBloomConfig,
   OrbInterior,
   OrbMaterialConfig,
+  OrbMotionSignature,
   OrbShellConfig,
   OrbStudioConfig,
   OrbStyle,
@@ -50,6 +51,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 10,
       thickness: 0.62,
       transmission: 1,
+    },
+    /** The neutral reference every other signature is read against. */
+    motion: {
+      durationScale: 1,
+      motionEase: "back.out(1.2)",
+      shapeEase: "power2.inOut",
     },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
@@ -97,6 +104,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 10,
       thickness: 0.18,
       transmission: 1,
+    },
+    /** A soap film has almost no mass, so it overshoots and rings. */
+    motion: {
+      durationScale: 0.85,
+      motionEase: "elastic.out(1, 0.45)",
+      shapeEase: "power2.out",
     },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
@@ -146,6 +159,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 12,
       thickness: 0.85,
       transmission: 1,
+    },
+    /** Faceted and hard: it arrives and stops. Bounce would read as rubber. */
+    motion: {
+      durationScale: 0.8,
+      motionEase: "power4.out",
+      shapeEase: "power3.inOut",
     },
     ridge: 0,
     // The facets are the geometry, not a shading trick: a subdivided sphere
@@ -208,6 +227,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       thickness: 1.6,
       transmission: 1,
     },
+    /** Resin is viscous. Everything takes longer and nothing springs. */
+    motion: {
+      durationScale: 1.5,
+      motionEase: "power1.inOut",
+      shapeEase: "power1.inOut",
+    },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
     studio: {
@@ -258,6 +283,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 16,
       thickness: 1.0,
       transmission: 1,
+    },
+    /** Crisp, with just enough give to not read as a cut. */
+    motion: {
+      durationScale: 0.95,
+      motionEase: "back.out(0.8)",
+      shapeEase: "power2.out",
     },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
@@ -314,6 +345,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       // skips both of Drei's extra passes.
       transmission: 0,
     },
+    /** Stone has mass: slow to start, decisive on arrival, no rebound. */
+    motion: {
+      durationScale: 1.25,
+      motionEase: "power4.inOut",
+      shapeEase: "power3.inOut",
+    },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
     studio: {
@@ -363,6 +400,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       // Zero transmission makes Drei skip both buffer passes, so an opaque
       // style costs less than a transmissive one instead of the same.
       transmission: 0,
+    },
+    /** A mirror moves mechanically. Symmetric, unhurried, unsurprised. */
+    motion: {
+      durationScale: 0.9,
+      motionEase: "power2.inOut",
+      shapeEase: "power2.inOut",
     },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
@@ -415,6 +458,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 6,
       thickness: 0,
       transmission: 0,
+    },
+    /** Magnetic fluid snaps into its spikes and then relaxes out of them. */
+    motion: {
+      durationScale: 1.1,
+      motionEase: "back.out(2.2)",
+      shapeEase: "power3.out",
     },
     ridge: 1,
     shell: { detail: 24, flatShading: false },
@@ -471,6 +520,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       thickness: 0.35,
       transmission: 1,
     },
+    /** Gas drifts. The slowest signature, and the only one with no corners. */
+    motion: {
+      durationScale: 1.6,
+      motionEase: "sine.inOut",
+      shapeEase: "sine.inOut",
+    },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
     studio: {
@@ -524,6 +579,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       thickness: 0.3,
       transmission: 1,
     },
+    /** Bands flow rather than travel; nothing about it should look eager. */
+    motion: {
+      durationScale: 1.35,
+      motionEase: "sine.out",
+      shapeEase: "power1.inOut",
+    },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
     studio: {
@@ -574,6 +635,12 @@ export const orbStyles: Record<OrbStyleId, OrbStyle> = {
       samples: 8,
       thickness: 0.9,
       transmission: 0.55,
+    },
+    /** The fastest and the springiest: it is the one style made of energy. */
+    motion: {
+      durationScale: 0.7,
+      motionEase: "back.out(3)",
+      shapeEase: "power3.out",
     },
     ridge: 0,
     shell: { detail: 24, flatShading: false },
