@@ -219,7 +219,7 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     componentType: "segmented",
     evidence: "rendered-pixels",
     expectedObservable:
-      "Each state writes the resolved parameter set into the visible sliders, one undo restores the previous set, and the orb eases to the new surface while keeping the active style's colours.",
+      "Each state writes the resolved parameter set into the visible sliders, one undo restores the previous set, and the orb plays through an authored transition to the new surface — shape settling before the forms that read as motion, on the active style's own timing — while keeping that style's colours.",
     fixture: "default orb at the Glass style, Idle state",
     id: "orb.state",
     kind: "control",
@@ -302,11 +302,11 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
   control({
     componentType: "slider",
     expectedObservable:
-      "The orb occupies less of the frame as the camera moves back.",
+      "The orb occupies less of the frame as the camera moves back, and the closest setting the control offers still fits the whole shell rather than cropping it.",
     id: "view.distance",
     interactionId: "view-distance-value",
     target: "view.distance",
-    userAction: "Drag Camera distance from 3.5 to 16.",
+    userAction: "Drag Camera distance from 4.5 to 16.",
   }),
   {
     automated: true,
@@ -403,7 +403,7 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     evidence: "exported-bytes",
     exportArtifactCoverage: "all-required-image-export-behavior",
     expectedObservable:
-      "Export PNG downloads a decodable image of the current orb at the selected format and resolution, and Copy Code places a React Three Fiber component carrying the current values on the clipboard.",
+      "Export PNG downloads a decodable image of the current orb at the selected format and resolution, and Copy Code places a React Three Fiber component on the clipboard that carries the current values, every state the generator offers, and the copied style's motion signature, so the pasted orb can be driven through a state prop.",
     fixture: "default orb at the Idle preset",
     id: "actions.output",
     kind: "control",
