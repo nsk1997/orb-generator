@@ -2,6 +2,7 @@ import {
   orbAuroraFragmentShader,
   orbNebulaFragmentShader,
 } from "./orb-materials";
+import { orbBaseFov } from "./orb-framing";
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 import {
@@ -154,6 +155,21 @@ import { Bloom, EffectComposer } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 const ORB_LOOP_SPAN = ${orbLoopSpan};
+const ORB_BASE_FOV = ${orbBaseFov};
+
+/**
+ * A perspective camera measures its field of view vertically, so a fixed fov
+ * holds the orb at a constant share of the frame's height and lets its share
+ * of the width run wherever the container's shape puts it. Widening the field
+ * on a portrait frame pins the horizontal field instead, which keeps the orb
+ * at the same share of whichever side is shorter.
+ */
+function orbFovForAspect(aspect) {
+  if (!Number.isFinite(aspect) || aspect <= 0 || aspect >= 1) return ORB_BASE_FOV;
+  return THREE.MathUtils.radToDeg(
+    2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(ORB_BASE_FOV) / 2) / aspect),
+  );
+}
 
 const ORB = {
   bloomIntensityScale: ${style.bloom.intensity},
@@ -489,6 +505,12 @@ function Orb({ bloom, state }) {
         0.3 * shape.transientLead;
     }
     if (halo.current) halo.current.quaternion.copy(camera.quaternion);
+
+    const framedFov = orbFovForAspect(camera.aspect);
+    if (camera.fov !== framedFov) {
+      camera.fov = framedFov;
+      camera.updateProjectionMatrix();
+    }
   });
 
   return (
@@ -597,7 +619,7 @@ export default function OrbScene({ state = ORB_DEFAULT_STATE }) {
 
   return (
     <Canvas
-      camera={{ far: 40, fov: 30, near: 0.1, position: [0, 0, ${round(options.viewDistance, 2)}] }}
+      camera={{ far: 40, fov: ORB_BASE_FOV, near: 0.1, position: [0, 0, ${round(options.viewDistance, 2)}] }}
       dpr={[1, 2]}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
       style={{ background: "${options.backgroundColor}" }}

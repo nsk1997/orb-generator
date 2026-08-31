@@ -9,6 +9,7 @@ import { shouldIncludeToolcraftPreviewBackground } from "@/toolcraft/runtime";
 import { useToolcraftDispatch } from "@/toolcraft/runtime/react";
 import type { ToolcraftState } from "@/toolcraft/runtime";
 
+import { orbBaseFov } from "./orb-framing";
 import styles from "./orb-canvas.module.css";
 import {
   OrbCanvasBridge,
@@ -146,7 +147,7 @@ export function OrbCanvas(): React.JSX.Element {
       <OrbPresetBridge />
       <OrbValueBridge inputsRef={inputsRef} />
       <Canvas
-        camera={{ far: 40, fov: 30, near: 0.1, position: [0, 0, 8] }}
+        camera={{ far: 40, fov: orbBaseFov, near: 0.1, position: [0, 0, 8] }}
         dpr={[1, 2]}
         gl={{
           alpha: true,

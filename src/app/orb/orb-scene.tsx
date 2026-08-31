@@ -32,6 +32,7 @@ import {
   registerOrbComposer,
   registerOrbFrameRenderer,
 } from "./orb-export-registry";
+import { orbBaseFov, orbFovForAspect } from "./orb-framing";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import {
   createOrbTransition,
@@ -394,6 +395,15 @@ export function OrbScene({
     camera.up.copy(cameraUp);
     camera.lookAt(0, 0, 0);
 
+    // A portrait frame needs a wider vertical field to hold the orb at the
+    // same share of its shorter side; see orb-framing.
+    const perspective = camera as PerspectiveCamera;
+    const framedFov = orbFovForAspect(perspective.aspect);
+    if (perspective.fov !== framedFov) {
+      perspective.fov = framedFov;
+      perspective.updateProjectionMatrix();
+    }
+
     if (bodyRef.current) {
       bodyRef.current.rotation.y = state.flowPhase * 0.08;
     }
@@ -603,6 +613,7 @@ export function OrbCanvasBridge({
       const previousSize = gl.getSize(new Vector2());
       const previousPixelRatio = gl.getPixelRatio();
       const previousAspect = perspective.aspect;
+      const previousFov = perspective.fov;
       const previousClear = new Color();
       gl.getClearColor(previousClear);
       const previousClearAlpha = gl.getClearAlpha();
@@ -614,6 +625,7 @@ export function OrbCanvasBridge({
         gl.setSize(width, height, false);
         gl.setClearColor(previousClear, 0);
         perspective.aspect = width / height;
+        perspective.fov = orbFovForAspect(perspective.aspect);
         perspective.updateProjectionMatrix();
 
         // Render through the post pipeline when one is mounted; a direct
@@ -636,6 +648,7 @@ export function OrbCanvasBridge({
         getOrbComposer()?.setSize(previousSize.x, previousSize.y);
         gl.setClearColor(previousClear, previousClearAlpha);
         perspective.aspect = previousAspect;
+        perspective.fov = previousFov;
         perspective.updateProjectionMatrix();
       }
 
