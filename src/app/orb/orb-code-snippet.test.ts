@@ -1,19 +1,32 @@
 import { transform } from "esbuild";
 import { describe, expect, it } from "vitest";
 
-import { createOrbCodeSnippet } from "./orb-code-snippet";
+import {
+  createOrbCodeSnippet,
+  createOrbSnippetStates,
+} from "./orb-code-snippet";
+import {
+  orbTransitionEnvelope,
+  orbTransitionMorph,
+} from "./orb-transition";
 import { orbDisplacementChunk } from "./orb-shader-chunks";
 import {
+  orbParamRanges,
   orbStateDeltas,
+  orbStateOrder,
   orbStyleOrder,
   orbStyles,
   resolveOrbPreset,
+  type OrbStateId,
 } from "./orb-styles";
 
-function snippetFor(styleId: (typeof orbStyleOrder)[number]): string {
-  return createOrbCodeSnippet(resolveOrbPreset(styleId, "idle"), {
+function snippetFor(
+  styleId: (typeof orbStyleOrder)[number],
+  stateId: OrbStateId = "idle",
+): string {
+  return createOrbCodeSnippet(resolveOrbPreset(styleId, stateId), {
     backgroundColor: "#0A0A12",
-    form: orbStateDeltas.idle.form,
+    stateId,
     style: orbStyles[styleId],
     viewDistance: 8,
   });
@@ -45,7 +58,7 @@ describe("copy code snippet", () => {
   });
 
   it("emits a distinct snippet for every style", () => {
-    const snippets = orbStyleOrder.map(snippetFor);
+    const snippets = orbStyleOrder.map((styleId) => snippetFor(styleId));
     expect(new Set(snippets).size).toBe(orbStyleOrder.length);
   });
 
@@ -135,5 +148,110 @@ describe("copy code snippet", () => {
     const snippet = snippetFor("glass");
     expect(snippet).toContain("% ORB_LOOP_SPAN");
     expect(snippet).toContain("fract(orbFlow / ORB_LOOP_SPAN)");
+  });
+});
+
+describe("copy code snippet states", () => {
+  it("reproduces the copied values exactly for the state that was active", () => {
+    // The whole offset scheme is worthless if the state the user was looking
+    // at comes back changed.
+    for (const stateId of orbStateOrder) {
+      const params = resolveOrbPreset("glass", stateId);
+      const states = createOrbSnippetStates(params, "glass", stateId);
+
+      expect(states[stateId].ior).toBeCloseTo(params.ior, 10);
+      expect(states[stateId].flowSpeed).toBeCloseTo(params.flowSpeed, 10);
+      expect(states[stateId].roughness).toBeCloseTo(params.roughness, 10);
+    }
+  });
+
+  it("carries a tuned look across to the states the user never visited", () => {
+    // Copying while Idle with a hand-tuned refractive index must not hand back
+    // a Think state that snaps to the shipped preset.
+    const preset = resolveOrbPreset("glass", "idle");
+    const tuned = { ...preset, ior: preset.ior + 0.3 };
+    const states = createOrbSnippetStates(tuned, "glass", "idle");
+    const thinkPreset = resolveOrbPreset("glass", "think");
+
+    expect(states.idle.ior).toBeCloseTo(tuned.ior, 10);
+    expect(states.think.ior).toBeCloseTo(thinkPreset.ior + 0.3, 10);
+  });
+
+  it("keeps every state inside its control range", () => {
+    const preset = resolveOrbPreset("glass", "idle");
+    // A user who pinned a slider to its top must not produce an out-of-range
+    // state for the ones that scale it further up.
+    const tuned = { ...preset, flowSpeed: 3, glowIntensity: 2 };
+    const states = createOrbSnippetStates(tuned, "glass", "idle");
+
+    for (const stateId of orbStateOrder) {
+      expect(states[stateId].flowSpeed).toBeLessThanOrEqual(
+        orbParamRanges.flowSpeed[1],
+      );
+      expect(states[stateId].glowIntensity).toBeLessThanOrEqual(
+        orbParamRanges.glowIntensity[1],
+      );
+    }
+  });
+
+  it("gives every state the form weights that define it", () => {
+    const states = createOrbSnippetStates(
+      resolveOrbPreset("glass", "idle"),
+      "glass",
+      "idle",
+    );
+
+    for (const stateId of orbStateOrder) {
+      expect(states[stateId].sweep).toBe(orbStateDeltas[stateId].form.sweep);
+      expect(states[stateId].swirl).toBe(orbStateDeltas[stateId].form.swirl);
+    }
+  });
+});
+
+describe("copy code snippet motion", () => {
+  it("emits a component driven by a state prop", () => {
+    const snippet = snippetFor("glass", "think");
+
+    expect(snippet).toContain("export default function OrbScene({ state = ORB_DEFAULT_STATE })");
+    expect(snippet).toContain('const ORB_DEFAULT_STATE = "think"');
+    for (const stateId of orbStateOrder) {
+      expect(snippet).toContain(`  ${stateId}: {`);
+    }
+  });
+
+  it("tells the reader gsap is required", () => {
+    // The snippet is copy-paste-run; a missing dependency in the install line
+    // is a broken promise, not a nitpick.
+    const snippet = snippetFor("glass");
+    expect(snippet).toContain("npm i three");
+    expect(snippet).toContain("gsap");
+    expect(snippet).toContain('import gsap from "gsap"');
+  });
+
+  it("replays the app's own choreography rather than a second copy of it", () => {
+    // Timings live in orb-transition and are emitted from there. If someone
+    // retunes the app and the snippet keeps the old feel, this catches it.
+    const snippet = snippetFor("glass");
+
+    for (const step of orbTransitionMorph) {
+      expect(snippet).toContain(
+        `at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}"`,
+      );
+    }
+    for (const step of orbTransitionEnvelope) {
+      expect(snippet).toContain(
+        `at: ${step.atSeconds}, duration: ${step.durationSeconds}, ease: "${step.ease}", from: ${step.from}, key: "${step.key}", to: ${step.to}`,
+      );
+    }
+  });
+
+  it("pins both ends of every emitted tween", () => {
+    // A plain to() would make the emitted timeline resolve differently when
+    // seeked backwards, which is the bug the app avoids the same way.
+    const snippet = snippetFor("glass");
+
+    expect(snippet).toContain("timeline.fromTo(");
+    expect(snippet).not.toContain("timeline.to(");
+    expect(snippet).toContain("gsap.timeline({ paused: true })");
   });
 });

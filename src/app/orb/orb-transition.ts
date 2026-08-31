@@ -14,6 +14,92 @@ export type OrbTransitionValues = OrbStateForm & {
   transientLead: number;
 };
 
+/**
+ * Shape settles first and motion arrives after it. Splitting the morph in two
+ * is the whole reason this is a timeline: one damp rate per family could say
+ * how fast a weight closes its gap, but never that these arrive after those.
+ */
+export type OrbTransitionRole = "motion" | "shape";
+
+export type OrbTransitionMorphStep = Readonly<{
+  atSeconds: number;
+  durationSeconds: number;
+  ease: string;
+  role: OrbTransitionRole;
+}>;
+
+export type OrbTransitionEnvelopeStep = Readonly<{
+  atSeconds: number;
+  durationSeconds: number;
+  ease: string;
+  from: number;
+  key: "transientFollow" | "transientLead";
+  to: number;
+}>;
+
+/** Long enough to read as a move, short enough to not feel like a wait. */
+export const orbTransitionDurationSeconds = 0.9;
+
+/**
+ * Timing only, with no mention of which values move. The generated snippet
+ * replays this same choreography over a wider set of keys — it has no sliders,
+ * so its scalars morph too — and sharing the timings is what keeps a pasted
+ * orb moving like the one the user copied it from.
+ */
+export const orbTransitionMorph: readonly OrbTransitionMorphStep[] = [
+  { atSeconds: 0, durationSeconds: 0.72, ease: "power2.inOut", role: "shape" },
+  // A little overshoot, because the forms that read as motion should arrive
+  // rather than settle.
+  { atSeconds: 0.08, durationSeconds: 0.78, ease: "back.out(1.2)", role: "motion" },
+];
+
+/**
+ * Light leads, geometry follows. A fast rise and a slow fall is what makes a
+ * state change land as an event instead of a crossfade.
+ */
+export const orbTransitionEnvelope: readonly OrbTransitionEnvelopeStep[] = [
+  {
+    atSeconds: 0,
+    durationSeconds: 0.16,
+    ease: "power3.out",
+    from: 0,
+    key: "transientLead",
+    to: 1,
+  },
+  {
+    atSeconds: 0.16,
+    durationSeconds: 0.62,
+    ease: "power2.inOut",
+    from: 1,
+    key: "transientLead",
+    to: 0,
+  },
+  {
+    atSeconds: 0.06,
+    durationSeconds: 0.22,
+    ease: "power3.out",
+    from: 0,
+    key: "transientFollow",
+    to: 1,
+  },
+  {
+    atSeconds: 0.28,
+    durationSeconds: 0.6,
+    ease: "power2.inOut",
+    from: 1,
+    key: "transientFollow",
+    to: 0,
+  },
+];
+
+/** Which weights each role moves in the app. The snippet adds its scalars. */
+export const orbTransitionFormKeys: Readonly<
+  Record<OrbTransitionRole, readonly (keyof OrbTransitionValues)[]>
+> = {
+  motion: ["pulse", "sweep", "swirl"],
+  shape: ["calm", "coreAgitation", "ridge"],
+};
+
 export type OrbTransition = {
   durationSeconds: number;
   /**
@@ -32,11 +118,15 @@ export type OrbTransitionOptions = {
   withTransient: boolean;
 };
 
-/** Long enough to read as a move, short enough to not feel like a wait. */
-export const orbTransitionDurationSeconds = 0.9;
-
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function pick(
+  values: OrbTransitionValues,
+  keys: readonly (keyof OrbTransitionValues)[],
+): Record<string, number> {
+  return Object.fromEntries(keys.map((key) => [key, values[key]]));
 }
 
 /**
@@ -56,89 +146,38 @@ export function createOrbTransition(
   const values: OrbTransitionValues = { ...from };
   const timeline = gsap.timeline({ paused: true });
 
-  // The shape morph carries the change and starts immediately.
-  timeline.fromTo(
-    values,
-    { calm: from.calm, coreAgitation: from.coreAgitation, ridge: from.ridge },
-    {
-      calm: to.calm,
-      coreAgitation: to.coreAgitation,
-      duration: 0.72,
-      ease: "power2.inOut",
-      ridge: to.ridge,
-    },
-    0,
-  );
+  orbTransitionMorph.forEach((step, index) => {
+    const keys = orbTransitionFormKeys[step.role];
 
-  // Pulse, sweep and swirl are the forms that read as motion rather than shape,
-  // so they lag the morph slightly and settle with a little overshoot. Four
-  // damp rates could not express "these three arrive after those three".
-  timeline.fromTo(
-    values,
-    { pulse: from.pulse, sweep: from.sweep, swirl: from.swirl },
-    {
-      duration: 0.78,
-      ease: "back.out(1.2)",
-      immediateRender: false,
-      pulse: to.pulse,
-      sweep: to.sweep,
-      swirl: to.swirl,
-    },
-    0.08,
-  );
+    timeline.fromTo(
+      values,
+      pick(from, keys),
+      {
+        ...pick(to, keys),
+        duration: step.durationSeconds,
+        ease: step.ease,
+        // The first tween may render at build time; every later one must not,
+        // or it would stamp its start value over the object before any seek.
+        immediateRender: index === 0,
+      },
+      step.atSeconds,
+    );
+  });
 
   if (options.withTransient) {
-    // Light leads. A fast rise and a slow fall is what makes the switch land as
-    // an event instead of a crossfade.
-    timeline
-      .fromTo(
+    for (const step of orbTransitionEnvelope) {
+      timeline.fromTo(
         values,
-        { transientLead: 0 },
+        { [step.key]: step.from },
         {
-          duration: 0.16,
-          ease: "power3.out",
+          [step.key]: step.to,
+          duration: step.durationSeconds,
+          ease: step.ease,
           immediateRender: false,
-          transientLead: 1,
         },
-        0,
-      )
-      .fromTo(
-        values,
-        { transientLead: 1 },
-        {
-          duration: 0.62,
-          ease: "power2.inOut",
-          immediateRender: false,
-          transientLead: 0,
-        },
-        0.16,
+        step.atSeconds,
       );
-
-    // Geometry follows, trailing the light by about one frame at 30fps on the
-    // way up and settling a beat later.
-    timeline
-      .fromTo(
-        values,
-        { transientFollow: 0 },
-        {
-          duration: 0.22,
-          ease: "power3.out",
-          immediateRender: false,
-          transientFollow: 1,
-        },
-        0.06,
-      )
-      .fromTo(
-        values,
-        { transientFollow: 1 },
-        {
-          duration: 0.6,
-          ease: "power2.inOut",
-          immediateRender: false,
-          transientFollow: 0,
-        },
-        0.28,
-      );
+    }
   }
 
   const durationSeconds = timeline.duration();
