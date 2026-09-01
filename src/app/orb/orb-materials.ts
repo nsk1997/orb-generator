@@ -37,6 +37,35 @@ export function applyOrbGlassTint(
   return out.copy(primary).lerp(orbWhitePoint, tintLift);
 }
 
+/**
+ * Takes ownership of the transmission material's `time` uniform.
+ *
+ * Drei's `MeshTransmissionMaterial` assigns `uniforms.time.value` from the R3F
+ * clock on every frame, before it checks transmission, so it does this for
+ * opaque styles too. That made the product's own write a no-op: the surface
+ * carried wall-clock time rather than the integrated flow phase, so `Flow
+ * speed` could not slow the material's internal distortion and setting it to 0
+ * did not stop the orb. Redefining the accessor makes the library's assignment
+ * the no-op instead, and the product the single owner of the clock.
+ */
+export function attachOrbProductTime(
+  material: Readonly<{ uniforms: Record<string, { value: unknown }> }>,
+  readPhase: () => number,
+): void {
+  const uniform = material.uniforms.time;
+
+  if (!uniform) {
+    throw new Error("The orb body material must expose a time uniform to own.");
+  }
+
+  Object.defineProperty(uniform, "value", {
+    configurable: true,
+    enumerable: true,
+    get: readPhase,
+    set: () => {},
+  });
+}
+
 /** The same tint as a hex string, for code that emits a colour rather than sets one. */
 export function orbGlassTintHex(primary: string, tintLift: number): string {
   const tint = applyOrbGlassTint(new Color(), new Color(primary), tintLift);
