@@ -410,6 +410,25 @@ Classifier output establishes complaint authority only and never path localizati
 - Checks actually run: `npm run typecheck`, `npx vitest run src` (523 passing, +6), `npm run ai:check`, `node scripts/check-toolcraft-integrity.mjs`, `npm run docs:check`, `npm run build`, plus the app-versus-snippet capture under Evidence. `npm run test:feature` remains unrunnable for the reasons recorded in Iterations 14 and 15.
 - Risks: Risk: `orb-scene.tsx` sat at exactly 700 lines after this change, which is the module budget, and was compacted to 697; it has almost no headroom left, so the next edit there will likely have to split the module. Risk: the emitted `RESPONSE` block is proved by name-and-value matching, so a coefficient that is emitted and read but multiplied into the wrong term would still pass; the pixel comparison is what actually covers that, and it is a gitignored harness rather than a test. Risk: this removes the duplication that exists today but adds no rule against reintroducing it, so a sixth formula could still be written twice.
 
+### Iteration 17 — Correcting Iteration 15: browser acceptance is unwritten, not unreachable
+
+- Request: "how to do that?", asking how to make the upstream change Iteration 15 said was required. Testing the cheap option first showed the upstream change is not required.
+- Task type: Correction to the record.
+- User-visible result: None. This entry exists because Iteration 15 recorded a conclusion that is wrong, and it was published in a merged pull request and in the README before it was checked.
+- Source/reference checked: The claim under test was Iteration 15's, that "browser acceptance for a WebGL product of this weight is not reachable from inside the generated app". Two runs on the default headless backend, with no GL launch flag and no forbidden import, disprove it: the full scene loaded and survived twenty seconds of rendering in 34.5 seconds total, and `createToolcraftBrowserProofSession` — the exact call that produced "Internal server error, session closed" — completed successfully in 1.7 minutes.
+- Reference inputs: None.
+- Docs/contracts read: `AGENTS.md`, `docs/toolcraft/acceptance-testing.md`.
+- Contract rules applied: `acceptance-product-observable`.
+- View interaction intent: Unchanged.
+- Interaction ownership: Unchanged.
+- Decision: Iteration 15 generalised from a single crash. That crash was real and is in the log, but it was transient, and everything built on top of it — that a GL launch flag was required, that applying one needs either a forbidden import or an edit to signed configuration, and therefore that the whole path is closed — followed from a sample of one. The two refusals it recorded are still true in isolation: `ai:check` does reject `@playwright/test` in a product spec, and the integrity manifest does reject an edited `playwright.config.ts`. What is false is that either is needed. What remains true, and was verified rather than assumed, is the dependency chain: `verify:perf` requires a current delivery receipt, `verify:delivery` refuses to build one while a named browser test is absent from the suite, and ten of the eleven declared tests have never been written. That is a gap in work done, not a gap in what is possible.
+- Alternatives rejected: Leaving Iteration 15 to stand and adding the correction only to the README, which would leave the durable record asserting something disproved. Filing the upstream Toolcraft change, which is now known to be unnecessary.
+- State/output mapping: None; documentation only.
+- Performance intent: ordinary-product-work
+- Verification: `npm run verify:delivery`.
+- Checks actually run: `npm run docs:check`. The two browser probes described above are the evidence for the correction itself.
+- Risks: Risk: the acceptance flow beyond session creation is still unproven. A later probe failed to locate the Style control within the helper's five-second budget, and another failed in Playwright fixture setup at its fixed thirty-second default, which `test.setTimeout` cannot raise from inside the test body. Both happened with the machine at a load average near eleven, largely from repeated runs of these very probes, so neither is yet distinguishable from environment noise; they are recorded as unexplained rather than as constraints, which is the mistake Iteration 15 made. Risk: the correction means the ten tests are worth writing, and nothing in this iteration writes them, so the compliance gap is unchanged in size and only better understood.
+
 
 ## Risks
 
