@@ -16,6 +16,7 @@ import {
 } from "three";
 
 import {
+  applyOrbGlassTint,
   createOrbAuroraMaterial,
   createOrbCoreMaterial,
   createOrbDomeMaterial,
@@ -172,7 +173,6 @@ export function OrbScene({
   const transitionRef = React.useRef<OrbTransition | null>(null);
   const transitionTimeRef = React.useRef(0);
   const transitionKeyRef = React.useRef("");
-  const whitePoint = useSmoothedColor("#FFFFFF");
   const shownPrimary = useSmoothedColor(orbDefaults.primaryColor);
   const shownCore = useSmoothedColor(orbDefaults.coreColor);
   const targetPrimary = useSmoothedColor(orbDefaults.primaryColor);
@@ -327,12 +327,9 @@ export function OrbScene({
       body.ior = state.ior;
       body.roughness = state.roughness;
       body.chromaticAberration = state.chromaticAberration;
-      // A lightened primary keeps transmitted light luminous while volume
-      // attenuation carries the saturated colour through the thick middle. How
-      // far to lift belongs to the style: a soap film is nearly white and a
-      // ferrofluid is nearly black, and one fixed amount cannot be both.
-      glassTint.copy(shownPrimary).lerp(whitePoint, style.tintLift);
-      body.color.copy(glassTint);
+      // Shared with Copy Code, so a pasted orb lifts toward white by exactly
+      // the same amount in exactly the same colour space.
+      body.color.copy(applyOrbGlassTint(glassTint, shownPrimary, style.tintLift));
       body.attenuationColor.copy(shownPrimary);
       body.time = state.flowPhase;
     }
