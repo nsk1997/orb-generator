@@ -10,6 +10,7 @@ import {
   orbTransitionEnvelope,
   orbTransitionMorph,
 } from "./orb-transition";
+import { orbGlassTintHex } from "./orb-materials";
 import { orbDisplacementChunk } from "./orb-shader-chunks";
 import {
   orbParamRanges,
@@ -254,6 +255,54 @@ describe("copy code snippet motion", () => {
     expect(snippetFor("plasma")).toContain(`ease: "${orbStyles.plasma.motion.motionEase}"`);
     expect(snippetFor("amber")).toContain(`ease: "${orbStyles.amber.motion.motionEase}"`);
     expect(snippetFor("amber")).not.toContain(`ease: "${orbStyles.plasma.motion.motionEase}"`);
+  });
+
+  it("lifts the glass tint in the renderer's colour space, not in sRGB", () => {
+    // Both sides lift the primary toward white by the style's tintLift, but
+    // Color.lerp runs in linear space and lerping hex digits does not. The
+    // snippet used to do the second, which made every style read lighter and
+    // less saturated in the app than in the orb the user pasted.
+    for (const styleId of orbStyleOrder) {
+      const params = resolveOrbPreset(styleId, "idle");
+      const expected = orbGlassTintHex(
+        params.primaryColor,
+        orbStyles[styleId].tintLift,
+      );
+
+      expect(snippetFor(styleId)).toContain(`glassTint: "${expected}"`);
+    }
+  });
+
+  it("keeps a lifted tint distinguishable from an sRGB lift", () => {
+    // Guards the guard: if the two spaces ever agreed, the test above would
+    // pass against either implementation and prove nothing.
+    const srgbLift = (hex: string, amount: number): string => {
+      const channel = (offset: number): string => {
+        const value = Number.parseInt(hex.slice(offset, offset + 2), 16);
+        return Math.round(value + (255 - value) * amount)
+          .toString(16)
+          .padStart(2, "0")
+          .toUpperCase();
+      };
+
+      return `#${channel(1)}${channel(3)}${channel(5)}`;
+    };
+    const primary = orbStyles.aurora.base.primaryColor;
+    const lift = orbStyles.aurora.tintLift;
+
+    expect(orbGlassTintHex(primary, lift)).not.toBe(srgbLift(primary, lift));
+  });
+
+  it("clears the background inside WebGL rather than in CSS", () => {
+    // The halo is additive and writes alpha 1, so a style whose halo reaches
+    // the frame edge turns the canvas opaque and masks any CSS background.
+    // Nebula's 4.6 halo does exactly that; Glass's 4.2 one does not, which is
+    // why relying on CSS looked correct for a long time.
+    for (const styleId of orbStyleOrder) {
+      expect(snippetFor(styleId)).toContain(
+        'onCreated={({ gl }) => gl.setClearColor("#0A0A12", 1)}',
+      );
+    }
   });
 
   it("pins both ends of every emitted tween", () => {

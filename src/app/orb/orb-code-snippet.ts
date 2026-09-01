@@ -3,6 +3,7 @@ import {
   orbNebulaFragmentShader,
 } from "./orb-materials";
 import { orbBaseFov } from "./orb-framing";
+import { orbGlassTintHex } from "./orb-materials";
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 import {
@@ -84,17 +85,6 @@ void main() {
 }
 `;
 
-/** Matches the live renderer: glass stays light, attenuation carries colour. */
-function lightenTowardWhite(hex: string, amount: number): string {
-  const channel = (offset: number): string => {
-    const value = Number.parseInt(hex.slice(offset, offset + 2), 16);
-    const mixed = Math.round(value + (255 - value) * amount);
-    return mixed.toString(16).padStart(2, "0").toUpperCase();
-  };
-
-  return `#${channel(1)}${channel(3)}${channel(5)}`;
-}
-
 function round(value: number, places = 3): string {
   return Number(value.toFixed(places)).toString();
 }
@@ -128,7 +118,7 @@ export function createOrbCodeSnippet(
     ),
   } as const;
   const vertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}`.trim();
-  const glassTint = lightenTowardWhite(params.primaryColor, style.tintLift);
+  const glassTint = orbGlassTintHex(params.primaryColor, style.tintLift);
   // A volume interior is a whole fragment stage, not a parameter, so the two
   // interiors are emitted as alternatives rather than as one shader with a
   // dead branch in it.
@@ -621,7 +611,11 @@ export default function OrbScene({ state = ORB_DEFAULT_STATE }) {
     <Canvas
       camera={{ far: 40, fov: ORB_BASE_FOV, near: 0.1, position: [0, 0, ${round(options.viewDistance, 2)}] }}
       dpr={[1, 2]}
-      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      gl={{ alpha: true, antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      // The background is cleared inside WebGL rather than set in CSS. The halo
+      // is additive and writes alpha 1, so on any style whose halo reaches the
+      // frame edge a CSS background is masked out and the orb sits on black.
+      onCreated={({ gl }) => gl.setClearColor("${options.backgroundColor}", 1)}
       style={{ background: "${options.backgroundColor}" }}
     >
       <Orb bloom={bloom} state={state} />

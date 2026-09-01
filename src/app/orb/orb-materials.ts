@@ -14,6 +14,36 @@ import {
 } from "./orb-displacement";
 import { orbDisplacementChunk, orbNoiseChunk } from "./orb-shader-chunks";
 
+const orbWhitePoint = new Color("#FFFFFF");
+
+/**
+ * The shell's own colour: the primary lifted toward white so transmitted light
+ * stays luminous while volume attenuation carries the saturated colour through
+ * the thick middle. How far to lift belongs to the style, because a soap film
+ * is nearly white and a ferrofluid is nearly black.
+ *
+ * This lives here rather than in each consumer because `Color.lerp` runs in
+ * three's linear working space while lerping the sRGB hex digits does not. The
+ * two produce visibly different colours for the same `tintLift` — lighter and
+ * less saturated in linear — so a second implementation is not a duplicate but
+ * a divergence waiting to happen. It already happened once: the copied snippet
+ * lifted in sRGB and rendered every style more saturated than the app.
+ */
+export function applyOrbGlassTint(
+  out: Color,
+  primary: Color,
+  tintLift: number,
+): Color {
+  return out.copy(primary).lerp(orbWhitePoint, tintLift);
+}
+
+/** The same tint as a hex string, for code that emits a colour rather than sets one. */
+export function orbGlassTintHex(primary: string, tintLift: number): string {
+  const tint = applyOrbGlassTint(new Color(), new Color(primary), tintLift);
+
+  return `#${tint.getHexString().toUpperCase()}`;
+}
+
 const orbLayerVertexShader = /* glsl */ `
 ${orbNoiseChunk}
 ${orbDisplacementChunk}
