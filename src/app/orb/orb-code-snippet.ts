@@ -4,6 +4,7 @@ import {
 } from "./orb-materials";
 import { orbBaseFov } from "./orb-framing";
 import { orbGlassTintHex } from "./orb-materials";
+import { orbResponse } from "./orb-response";
 import { orbNoiseChunk, orbDisplacementChunk, orbLoopSpan } from "./orb-shader-chunks";
 import type { OrbParams } from "./orb-params";
 import {
@@ -118,6 +119,11 @@ export function createOrbCodeSnippet(
     ),
   } as const;
   const vertexPreamble = `${orbNoiseChunk}\n${orbDisplacementChunk}`.trim();
+  // One entry per line keeps the emitted block readable and keeps every
+  // coefficient traceable to `orbResponse`.
+  const responseSource = `{\n${Object.entries(orbResponse)
+    .map(([key, value]) => `  ${key}: ${value},`)
+    .join("\n")}\n}`;
   const glassTint = orbGlassTintHex(params.primaryColor, style.tintLift);
   // A volume interior is a whole fragment stage, not a parameter, so the two
   // interiors are emitted as alternatives rather than as one shader with a
@@ -160,6 +166,11 @@ function orbFovForAspect(aspect) {
     2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(ORB_BASE_FOV) / 2) / aspect),
   );
 }
+
+// How the controls turn into what gets drawn. Serialised from the generator's
+// own definition rather than restated, so retuning it there cannot leave a
+// copied orb responding the old way.
+const RESPONSE = ${responseSource};
 
 const ORB = {
   bloomIntensityScale: ${style.bloom.intensity},
@@ -393,7 +404,7 @@ function Orb({ bloom, state }) {
     () => ({
       ...coreUniforms,
       orbCoreColor: { value: new THREE.Color(ORB.coreColor) },
-      orbCoreIntensity: { value: (0.5 + ORB_INITIAL.glowIntensity * 0.28) * ${style.coreIntensityScale} },${interiorUniforms}
+      orbCoreIntensity: { value: (RESPONSE.coreBase + ORB_INITIAL.glowIntensity * RESPONSE.coreGlow) * ${style.coreIntensityScale} },${interiorUniforms}
     }),
     [coreUniforms],
   );
@@ -459,7 +470,7 @@ function Orb({ bloom, state }) {
     // and wrapping to the loop span gives every layer one shared cycle to
     // return to; one cycle lasts ORB_LOOP_SPAN / flowSpeed seconds.
     phase.current = (phase.current + step * shape.flowSpeed) % ORB_LOOP_SPAN;
-    const distortion = shape.distortion + 0.1 * shape.transientFollow;
+    const distortion = shape.distortion + RESPONSE.shellDistortionFollow * shape.transientFollow;
 
     bodyUniforms.orbCalm.value = shape.calm;
     bodyUniforms.orbDistortion.value = distortion;
@@ -470,7 +481,7 @@ function Orb({ bloom, state }) {
 
     coreUniforms.orbCalm.value = shape.calm;
     // The core can churn inside a still shell, which is what Think looks like.
-    coreUniforms.orbDistortion.value = distortion * 0.55 * shape.coreAgitation;
+    coreUniforms.orbDistortion.value = distortion * RESPONSE.coreDistortion * shape.coreAgitation;
     coreUniforms.orbFlow.value = phase.current;
     coreUniforms.orbPulse.value = shape.pulse;
     // Sweep reaches the interior only where the interior draws with it.
@@ -478,9 +489,9 @@ function Orb({ bloom, state }) {
     coreUniforms.orbSwirl.value = shape.swirl;
 
     interiorUniforms.orbCoreIntensity.value =
-      (0.5 + shape.glowIntensity * 0.28) * ${style.coreIntensityScale};
+      (RESPONSE.coreBase + shape.glowIntensity * RESPONSE.coreGlow) * ${style.coreIntensityScale};
     glowUniforms.orbGlowIntensity.value =
-      shape.glowIntensity + 0.25 * shape.transientLead;
+      shape.glowIntensity + RESPONSE.glowLead * shape.transientLead;
     glowUniforms.orbGlowSpread.value = shape.glowSpread;
 
     if (body.current) {
@@ -491,8 +502,8 @@ function Orb({ bloom, state }) {
     // Glow already means "how much light escapes", so it scales bloom too.
     if (bloom.current) {
       bloom.current.intensity =
-        ORB.bloomIntensityScale * (0.55 + shape.glowIntensity * 0.45) +
-        0.3 * shape.transientLead;
+        ORB.bloomIntensityScale * (RESPONSE.bloomBase + shape.glowIntensity * RESPONSE.bloomGlow) +
+        RESPONSE.bloomLead * shape.transientLead;
     }
     if (halo.current) halo.current.quaternion.copy(camera.quaternion);
 
@@ -621,7 +632,7 @@ export default function OrbScene({ state = ORB_DEFAULT_STATE }) {
       <Orb bloom={bloom} state={state} />
       <EffectComposer>
         <Bloom
-          intensity={ORB.bloomIntensityScale * (0.55 + ORB_INITIAL.glowIntensity * 0.45)}
+          intensity={ORB.bloomIntensityScale * (RESPONSE.bloomBase + ORB_INITIAL.glowIntensity * RESPONSE.bloomGlow)}
           luminanceSmoothing={0.25}
           luminanceThreshold={ORB.bloomThreshold}
           mipmapBlur

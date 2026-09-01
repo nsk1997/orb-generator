@@ -35,6 +35,7 @@ import {
 } from "./orb-export-registry";
 import { dampSettled, lerpSettled } from "./orb-damping";
 import { orbBaseFov, orbFovForAspect } from "./orb-framing";
+import { orbBloomIntensity, orbCoreDistortion, orbCoreIntensity, orbGlowIntensity, orbShellDistortion } from "./orb-response";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import {
   createOrbTransition,
@@ -339,7 +340,7 @@ export function OrbScene({
       body.color.copy(applyOrbGlassTint(glassTint, shownPrimary, style.tintLift));
       body.attenuationColor.copy(shownPrimary);
     }
-    const shellDistortion = state.distortion + 0.1 * state.transientFollow;
+    const shellDistortion = orbShellDistortion(state.distortion, state.transientFollow);
 
     bodyUniforms.orbCalm.value = state.calm;
     bodyUniforms.orbDistortion.value = shellDistortion;
@@ -351,7 +352,7 @@ export function OrbScene({
 
     glowMaterial.uniforms.orbGlowColor.value.copy(shownPrimary);
     glowMaterial.uniforms.orbGlowIntensity.value =
-      state.glowIntensity + 0.25 * state.transientLead;
+      orbGlowIntensity(state.glowIntensity, state.transientLead);
     glowMaterial.uniforms.orbGlowSpread.value = state.glowSpread;
 
     coreMaterial.uniforms.orbCalm.value = state.calm;
@@ -366,7 +367,7 @@ export function OrbScene({
       interior.kind === "aurora" ? state.sweep : 0;
     // The core can churn inside a still shell, which is what Think looks like.
     coreMaterial.uniforms.orbDistortion.value =
-      shellDistortion * 0.55 * state.coreAgitation;
+      orbCoreDistortion(shellDistortion, state.coreAgitation);
     // Same phase as the shell: a seamless capture needs one period for the
     // whole orb, and the core already reads differently from its smaller
     // scale and lower distortion.
@@ -376,14 +377,12 @@ export function OrbScene({
     // the core colour alone.
     coreMaterial.uniforms.orbAuroraTint?.value.copy(shownPrimary);
     coreMaterial.uniforms.orbCoreIntensity.value =
-      (0.5 + state.glowIntensity * 0.28) * style.coreIntensityScale;
+      orbCoreIntensity(state.glowIntensity, style.coreIntensityScale);
 
     // Glow already means "how much light escapes", so it scales bloom too
     // rather than adding a tenth control for the same idea.
     if (bloomRef.current) {
-      bloomRef.current.intensity =
-        style.bloom.intensity * (0.55 + state.glowIntensity * 0.45) +
-        0.3 * state.transientLead;
+      bloomRef.current.intensity = orbBloomIntensity(style.bloom.intensity, state.glowIntensity, state.transientLead);
     }
 
     const pose = inputs.pose;
