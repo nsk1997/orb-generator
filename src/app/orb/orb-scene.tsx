@@ -6,7 +6,6 @@ import { MeshTransmissionMaterial } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
   Color,
-  MathUtils,
   Mesh,
   PerspectiveCamera,
   Vector2,
@@ -17,6 +16,7 @@ import {
 
 import {
   applyOrbGlassTint,
+  attachOrbProductTime,
   createOrbAuroraMaterial,
   createOrbCoreMaterial,
   createOrbDomeMaterial,
@@ -33,6 +33,7 @@ import {
   registerOrbComposer,
   registerOrbFrameRenderer,
 } from "./orb-export-registry";
+import { dampSettled, lerpSettled } from "./orb-damping";
 import { orbBaseFov, orbFovForAspect } from "./orb-framing";
 import { orbLoopSpan } from "./orb-shader-chunks";
 import {
@@ -199,6 +200,12 @@ export function OrbScene({
       // Every material gets patched, not just the first. Guarding on "have we
       // done this once" left every style switch rendering a static sphere.
       attachOrbDisplacement(material, bodyUniforms, "orb-displaced-transmission");
+      // Claimed on every material for the same reason: a style switch mounts a
+      // new one, and Drei would drive the new one from the wall clock again.
+      attachOrbProductTime(
+        material as unknown as { uniforms: Record<string, { value: unknown }> },
+        () => shown.current.flowPhase,
+      );
     },
     [bodyUniforms],
   );
@@ -213,44 +220,44 @@ export function OrbScene({
     const state = shown.current;
     const step = Math.min(delta, 1 / 20);
 
-    state.chromaticAberration = MathUtils.damp(
+    state.chromaticAberration = dampSettled(
       state.chromaticAberration,
       params.chromaticAberration,
       responseRates.surface,
       step,
     );
-    state.distortion = MathUtils.damp(
+    state.distortion = dampSettled(
       state.distortion,
       params.distortion,
       responseRates.motion,
       step,
     );
-    state.flowSpeed = MathUtils.damp(
+    state.flowSpeed = dampSettled(
       state.flowSpeed,
       params.flowSpeed,
       responseRates.motion,
       step,
     );
-    state.glowIntensity = MathUtils.damp(
+    state.glowIntensity = dampSettled(
       state.glowIntensity,
       params.glowIntensity,
       responseRates.surface,
       step,
     );
-    state.glowSpread = MathUtils.damp(
+    state.glowSpread = dampSettled(
       state.glowSpread,
       params.glowSpread,
       responseRates.surface,
       step,
     );
-    state.ior = MathUtils.damp(state.ior, params.ior, responseRates.surface, step);
-    state.roughness = MathUtils.damp(
+    state.ior = dampSettled(state.ior, params.ior, responseRates.surface, step);
+    state.roughness = dampSettled(
       state.roughness,
       params.roughness,
       responseRates.surface,
       step,
     );
-    state.viewDistance = MathUtils.damp(
+    state.viewDistance = dampSettled(
       state.viewDistance,
       inputs.viewDistance,
       responseRates.view,
@@ -319,8 +326,8 @@ export function OrbScene({
 
     targetPrimary.set(params.primaryColor);
     targetCore.set(params.coreColor);
-    shownPrimary.lerp(targetPrimary, 1 - Math.exp(-responseRates.color * step));
-    shownCore.lerp(targetCore, 1 - Math.exp(-responseRates.color * step));
+    lerpSettled(shownPrimary, targetPrimary, 1 - Math.exp(-responseRates.color * step));
+    lerpSettled(shownCore, targetCore, 1 - Math.exp(-responseRates.color * step));
 
     const body = bodyMaterialRef.current;
     if (body) {
@@ -331,7 +338,6 @@ export function OrbScene({
       // the same amount in exactly the same colour space.
       body.color.copy(applyOrbGlassTint(glassTint, shownPrimary, style.tintLift));
       body.attenuationColor.copy(shownPrimary);
-      body.time = state.flowPhase;
     }
     const shellDistortion = state.distortion + 0.1 * state.transientFollow;
 
