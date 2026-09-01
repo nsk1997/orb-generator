@@ -11,6 +11,7 @@ import {
   orbTransitionMorph,
 } from "./orb-transition";
 import { orbGlassTintHex } from "./orb-materials";
+import { orbResponse } from "./orb-response";
 import { orbDisplacementChunk } from "./orb-shader-chunks";
 import {
   orbParamRanges,
@@ -301,6 +302,23 @@ describe("copy code snippet motion", () => {
     for (const styleId of orbStyleOrder) {
       expect(snippetFor(styleId)).toContain(
         'onCreated={({ gl }) => gl.setClearColor("#0A0A12", 1)}',
+      );
+    }
+  });
+
+  it("serialises the response coefficients instead of restating them", () => {
+    // These five expressions used to be copy-pasted between the render loop and
+    // this emitter, with nothing keeping them in step. Every coefficient must
+    // reach the snippet as data and be read back by name, so retuning the app
+    // cannot leave a pasted orb responding the old way.
+    const snippet = snippetFor("glass");
+
+    for (const [key, value] of Object.entries(orbResponse)) {
+      expect(snippet, `${key} must be emitted as data`).toContain(
+        `${key}: ${value},`,
+      );
+      expect(snippet, `${key} must be read back by name`).toContain(
+        `RESPONSE.${key}`,
       );
     }
   });
